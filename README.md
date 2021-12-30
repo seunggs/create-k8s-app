@@ -16,7 +16,7 @@ If something doesn't work, please file an issue.
 
 
 ## Overview
-If you'd like to get started right away, see [Creating Knative Cluster](#creating-knative-cluster) section or [Tutorials](#tutorials) section. Please review the [cost considerations](#cost-considerations) before using this project.
+If you'd like to get started right away, see [Creating K8s App](#creating-k8s-app) section or [Tutorials](#tutorials) section. Please review the [cost considerations](#cost-considerations) before using this project.
 
 ### Motivation
 It is far too much work to setup a working Kubernetes cluster with everything required to serve even a simple web app. Despite the introduction of interesting DevOps automation tools like Pulumi:
