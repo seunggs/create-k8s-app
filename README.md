@@ -1,14 +1,14 @@
-# Create Knative Cluster
-Create Kubernetes clusters with preinstalled Knative for easy app serving.
+# Create K8s App
+Create a Kubernetes cluster with everything included to run an app.
 
 It's like "Create React App", but for setting up Kubernetes cluster with helpful features preinstalled (node/pod autoscaling, https, monitoring, app serving, etc). It uses Pulumi to programmatically create a Kubernetes cluster and provision all the resources required to serve an app with a single command (almost). ✨
 
-Once the cluster is set up, you can use Pulumi to manage or add resources using the familiar Javascipt/Typescript. Or, you can directly manipulate Kubernetes resources using kubectl if you prefer.
+Once the cluster is set up, you can use Pulumi to manage or add resources using the familiar Javascipt/Typescript. Or, you can directly manipulate Kubernetes resources using kubectl or any other tools (e.g. Terraform) if you prefer.
 
 * Currently supports AWS only.
 * Currently tested on MacOS.
 
-If something doesn't work, please [file an issue](https://github.com/sidetrekAI/create-knative-cluster/issues/new).
+If something doesn't work, please file an issue.
 
 <!-- If you have questions or need help, please join the [Slack channel](https://create-knative-cluster.slack.com) -->
 
@@ -26,34 +26,26 @@ It is far too much work to setup a working Kubernetes cluster with everything re
 
 This package aims to remove these frustrations - much like Create React App did for scaffolding a React app.
 
-Underneath, this package uses Knative to serve apps. Knative has many interesting features that make serving apps in Kubernetes clusters painless compared to the traditional Kubernetes deployment/service pattern, such as:
+Underneath, this package uses Dapr and Emissary Ingress (a.k.a. Ambassador) to serve apps. The default setup enables some helpful features such as:
 
-* Scalable serverless setup
+* Autoscaling for both nodes (via Karpenter) and pods (via Horizontal Pod Autoscaler)
 * Zero downtime deployment
-* Easy rollbacks via revision-based deployments, 
+* Easy rollbacks
 * Flexible deployment options such as blue/green or canary deployments
-* Traffic based autoscaling
   
-Please check out the Knative docs [here](https://knative.dev/docs/) for more details.
-
 ### What's included
 * AWS EKS cluster with Managed Node Group: Defaults to `t3.medium` instances with disk space of 30GB; 4x desired nodes (i.e. EC2 instances), 4x min nodes, and 20x max nodes
-* Cluster Autoscaler: If there are pods pending due to lack of nodes, Cluster Autoscaler will automatically spin up more nodes in the cluster (up to max nodes above)
+* Karpenter: If there are pods pending due to lack of nodes, Karpenter will automatically spin up more nodes in the cluster
 * Custom domain: Use your own custom domain by default
 * Https by default: Cert-manager enables https traffic to the cluster with auto-renewed Let's Encrypt certificates
-* Istio: As part of the Knative installation, Istio is installed with sidecar injection (via Istio Operator). Note that mtls between services is not enabled by default as of today
-* Knative Serving: Knative Serving is what enabales easy app serving (installed via Knative Operator)
-* Knative Eventing: Currently not really used for anything and not connected to any eventing sources (i.e. Kafka, Ceph, etc.)
-* Monitoring via Kube Prometheus Stack: Monitoring with Prometheus and Grafana is enabled by default. Login to Grafana using the credentials you set with CLI by visiting grafana-dashboard.your-domain.com
+* Emissary Ingress: Emissary Ingress is an API gateway and makes it easy to control routing to services including ingress (i.e. entrypoint) for the cluster
+* Monitoring via Kube Prometheus Stack: Monitoring with Prometheus and Grafana is enabled by default. Login to Grafana using the credentials you set with CLI by visiting grafana.your-domain.com
 * (Optional) AWS RDS instance
   * Staging DB: Defaults to `db.t3.micro` with 5GB of storage and 50GB of max storage
   * Prod DB: Defaults to `db.t3.small` with 20GB of storage and 1000GB of max storage
-* (Optional) App
-  * Staging app: Knative Service that routes to `staging.<your-domain>` (i.e. `staging.sidetrek.com`) using Istio VirtualService
-  * Pro app: Knative Service that routes to `*.<your-domain>` (i.e. `*.sidetrek.com`) using Istio VirtualService
-    * For more information on Knative Service, see [Knative docs](https://knative.dev/docs/) 
-    * For more information on Istio VirtualService, see [Istio docs](https://istio.io/latest/docs/reference/config/networking/virtual-service/)
-    * To understand the internals of Create Knative Cluster better, see the [Internals](#internals) section
+* (Optional) App: make sure to change the settings for your use case - consider the default setup as more of an example (built for running a React/Express app)
+  * Staging app: routes to `staging.<your-domain>` (i.e. `staging.sidetrek.com`)
+  * Prod app: routes to `*.<your-domain>` (i.e. `*.sidetrek.com`)
 
 ### <a name="cost-considerations"></a>Cost considerations
 This project is completely open-source but the resources it provisions will cost you in potentially two ways.
@@ -61,7 +53,7 @@ This project is completely open-source but the resources it provisions will cost
 2. AWS: With 1x EKS cluster (~$70/mo), 4x t3.medium EC2 instances (~$120/mo), the default setup will cost you ~$200/mo. If you use the RDS option, that'll cost you extra depending on your storage requirements.
 
 
-## <a name="creating-knative-cluster"></a>Creating a Knative cluster
+## <a name="creating-k8s-app"></a>Creating a k8s app
 
 ### Prerequisites
 1. Install `aws` cli by following the instructions [here](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html)
@@ -77,49 +69,50 @@ This project is completely open-source but the resources it provisions will cost
    1. Follow the Basic Install in [direnv docs](https://direnv.net/)
    2. Once successfully installed, run `direnv allow .` in the project root directory
 
-Other optional installations:
-* (Optional) Install `istioctl`
-   * Go to your home directory: `cd ~`
-   * [Download the latest Istio release](https://github.com/istio/istio/releases/) to `/istio-installation` folder
-   * Add `istioctl` to PATH
-* (Optional) Install `kn` (Knative cli) - follow the instructions [here](https://knative.dev/docs/install/client/install-kn/)
-
 ### Get started
-1. Create ckc-config.json in your project root directory and configure it to your needs
+1. Create ckc-config.json in your project root directory and configure it to your needs.
 ```
 {
   "init": {
     "awsRegion": "us-west-1",
     "pulumiOrganization": "example", // name of your Pulumi organization
-    "hostname": "sidetrek.com", // Hostname of your custom domain
+    "hostname": "example.com", // Hostname of your custom domain
     "hostedZoneId": "EXAMPLE123" // AWS Route53 Hosted Zone ID for your hostname,
-    "acmeEmail": "hello@sidetrek.com", // Email to use for Let's Encrypt TLS certificate creation
+    "acmeEmail": "hello@example.com", // Email to use for Let's Encrypt TLS certificate creation
     "useDirenv": true, // Recommended to scope Kubernetes envs to this particular project directory rather than globally - see direnv setup instruction in Prerequisites section for more details
   },
   "destroy": {
-    "removeStacks": true,
+    "removeStacks": true, // remove Pulumi stacks when destroying resources
     "keepCluster": false
   }
 }
 ```
-2. If you're using direnv option, make sure to run `direnv allow .` before proceeding
-3. Deploy your app to a Kubernetes cluster (🧘🏼‍♀️ please be patient as the entire process can take 30-60 minutes to complete - provisioning AWS EKS alone can take 20+ minutes): 
+2. If you're using direnv option, make sure to run `direnv allow .` before proceeding.
+3. Deploy your app to a Kubernetes cluster (🧘🏼‍♀️ please be patient as the entire process can take 30-60 minutes to complete - provisioning AWS EKS alone can take 20+ minutes).
 ```
 npx ckc init
 ```
-4. Point custom domain to ingress external IP (this is the entry point to the cluster)
+4. Point custom domain to ingress external IP (this is the entry point to the cluster).
    1. Run `kubectl get svc -n emissary` to get the External-IP of `emissary-ingress` Service
    2. Add a CNAME record in Route 53 (or use Alias A record if it's a root domain - i.e. sidetrek.com). In the custom domain's Hosted zone, Create a record with:
       * Record name: *.<your-domain> (i.e. *.sidetrek.com), 
       * Record type: CNAME, and 
       * Value: ingress external IP from the previous step
-5. (Optional) Add app related stacks - review the settings before running this to fit your use case - use it more as an example
+5. (Optional) Add app related stacks. Please review the settings before running this to fit your use case - use it more as an example.
 ```
 npx ckc app
 ```
 6. (Optional) Run the following cmd to copy the Pulumi setup files for local management
 ```
 npx ckc copy-pulumi-files
+```
+7. Destroy the entire project
+```
+npx ckc destroy
+```
+Options:
+```
+--keep-cluster: removes all resources except for the cluster, Karpenter, and main k8s roles
 ```
 
 If you'd like to see the whole project setup from start to finish, please see [tutorials section](#tutorials). 
