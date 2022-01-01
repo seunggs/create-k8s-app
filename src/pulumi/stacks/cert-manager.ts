@@ -1,14 +1,13 @@
 import * as pulumi from '@pulumi/pulumi'
-import { CertManager, CertManagerCertificate } from '../component-resources/cluster-svc'
+import { CertManager } from '../component-resources/cluster-svc'
 
 export interface CertManagerStackArgs {
   project: string,
   awsAccountId: string,
   awsRegion: string,
-  hostedZoneId: string,
-  hostname: string,
+  // hostedZoneId: string,
+  certManagerNamespaceName: string,
   eksHash: pulumi.Output<string>,
-  acmeEmail: string,
 }
 
 export class CertManagerStack extends pulumi.ComponentResource {
@@ -19,10 +18,9 @@ export class CertManagerStack extends pulumi.ComponentResource {
       project,
       awsAccountId,
       awsRegion,
-      hostedZoneId,
-      hostname,
+      // hostedZoneId,
+      certManagerNamespaceName,
       eksHash,
-      acmeEmail,
     } = args
 
     // Install cert-manager for TLS certificates
@@ -30,10 +28,9 @@ export class CertManagerStack extends pulumi.ComponentResource {
       project,
       awsAccountId,
       awsRegion,
-      hostedZoneId,
-      hostname,
+      // hostedZoneId,
+      certManagerNamespaceName,
       eksHash,
-      acmeEmail,
     }, { parent: this })
 
     this.registerOutputs()

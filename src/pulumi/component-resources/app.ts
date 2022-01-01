@@ -80,6 +80,11 @@ export interface K8sServiceDeploymentVolume {
   claimName: string,
 }
 
+export interface K8sContainerResourceRequirements {
+  limits?: {[key: string]: string},
+  requests?: {[key: string]: string},
+}
+
 export interface K8sContainer {
   name?: string,
   args?: string[],
@@ -87,7 +92,7 @@ export interface K8sContainer {
   env?: K8sContainerEnvVar[],
   image: pulumi.Output<string> | string,
   imagePullPolicy?: string,
-  resources?: any,
+  resources?: K8sContainerResourceRequirements,
   port: number,
 }
 
@@ -115,10 +120,10 @@ export class ServiceDeployment extends pulumi.ComponentResource {
         name: appName = name,
         namespace = 'default',
         labels: customLabels = {},
-        annotations = {},
+        annotations,
       } = {},
       podMetadata: {
-        annotations: podAnnotations = {},
+        annotations: podAnnotations,
       } = {},
       container: {
         image,
@@ -154,7 +159,7 @@ export class ServiceDeployment extends pulumi.ComponentResource {
         name: appName,
         namespace,
         labels,
-        annotations,
+        ...annotations ? { annotations } : {},
       },
       spec: {
         replicas,
@@ -164,7 +169,7 @@ export class ServiceDeployment extends pulumi.ComponentResource {
         template: {
           metadata: {
             labels,
-            annotations: podAnnotations,
+            ...podAnnotations ? { annotations: podAnnotations } : {},
           },
           spec: {
             containers: [container],
@@ -295,6 +300,7 @@ export class DaprVaultSecretStore extends pulumi.ComponentResource {
 export interface AppBuildStepArgs {
   context: string,
   dockerfile: string,
+  args?: { [key: string]: string },
 }
 
 export class AppBuildStep extends pulumi.ComponentResource {
@@ -306,6 +312,7 @@ export class AppBuildStep extends pulumi.ComponentResource {
     const {
       context,
       dockerfile,
+      args: imageArgs,
     } = args
 
     // const image = 'docker.io/datawire/quote:0.5.0' // FOR TESTING
@@ -314,6 +321,7 @@ export class AppBuildStep extends pulumi.ComponentResource {
     const image = pulumi.output(awsx.ecr.buildAndPushImage(name, {
       context,
       dockerfile,
+      args: imageArgs,
     }).imageValue)
 
     this.imageUrl = image
@@ -322,12 +330,17 @@ export class AppBuildStep extends pulumi.ComponentResource {
   }
 }
 
+export interface AppDeployStepContainerArgs {
+  image: pulumi.Output<string> | string,
+  port: number,
+  envs?: K8sContainerEnvVar[],
+  resources?: any,
+}
+
 export interface AppDeployStepArgs {
   namespace: string,
   svcName: string,
-  image: pulumi.Output<string> | string,
-  containerPort: number,
-  containerEnvs?: K8sContainerEnvVar[],
+  container: AppDeployStepContainerArgs,
 }
 
 export class AppDeployStep extends pulumi.ComponentResource {
@@ -337,9 +350,12 @@ export class AppDeployStep extends pulumi.ComponentResource {
     const {
       namespace,
       svcName,
-      image,
-      containerPort,
-      containerEnvs,
+      container: {
+        image,
+        port,
+        envs,
+        resources,
+      },
     } = args
 
     const appSvc = new DaprService(svcName, {
@@ -351,8 +367,9 @@ export class AppDeployStep extends pulumi.ComponentResource {
       },
       container: {
         image,
-        port: containerPort,
-        ...containerEnvs ? { env: containerEnvs } : {},
+        port,
+        ...envs ? { env: envs } : {},
+        ...resources ? { resources } : {},
       },
     }, { parent: this })
 

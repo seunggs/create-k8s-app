@@ -18,21 +18,18 @@ const main = async () => {
   const projectRootPath = cliExecCtx === 'ckc' ? cwd : path.resolve(__dirname)
   const stack = cliExecCtx === 'ckc' ? simpleStore.getState('currentStack') : pulumi.getStack()
   const organization = config.require('pulumi_organization')
-  const hostname = config.require('hostname')
   const { accountId: awsAccountId } = await aws.getCallerIdentity({})
   const { name: awsRegion } = await aws.getRegion()
 
   const appStagingNamespaceName = 'app-staging'
   const appProdNamespaceName = 'app-prod'
   const kubePrometheusStackNamespaceName = 'kube-prometheus-stack'
-  const grafanaHostname = `grafana.${hostname}`
   const rootDomainTlsSecretName = `tls-root-domain`
   const subdomainWildcardTlsSecretName = `tls-subdomain-wildcard`
-  const stagingHostname = `staging.${hostname}`
-  const prodHostname = `${hostname}`
   const appStagingSvcName = 'app-staging-svc'
   const appProdSvcName = 'app-prod-svc'
   const emissaryNamespaceName = 'emissary'
+  const certManagerNamespaceName = 'cert-manager'
 
   // DB helpers
   const getDbStackOutputs = (config: pulumi.Config, dbStackRef: any) => {
@@ -77,7 +74,8 @@ const main = async () => {
    * Stack: cluster
    */
   if (stack === 'cluster') {
-    const encryptionConfigKeyArn = config.get('encryptionConfigKeyArn')
+    const keyPairName = config.get('key_pair_name')
+    const encryptionConfigKeyArn = config.get('encryption_config_key_arn')
 
     const clusterAdminRole = identityStackRef.getOutput('clusterAdminRole') as unknown as aws.iam.Role
     const developerRole = identityStackRef.getOutput('developerRole') as unknown as aws.iam.Role
@@ -87,6 +85,7 @@ const main = async () => {
       project,
       clusterAdminRole,
       developerRole,
+      ...keyPairName ? { keyPairName } : {},
       ...encryptionConfigKeyArn ? { encryptionConfigKeyArn } : {},
     })
 
@@ -125,9 +124,7 @@ const main = async () => {
    * Stack: cert-manager
    */
   if (stack === 'cert-manager') {
-    const hostedZoneId = config.require('hosted_zone_id')
-    const acmeEmail = config.require('acme_email')
-
+    // const hostedZoneId = config.require('hosted_zone_id')
     const eksHash = clusterStackRef.getOutput('eksHash') as pulumi.Output<string>
 
     const { CertManagerStack } = await import('./pulumi/stacks/cert-manager')
@@ -135,10 +132,9 @@ const main = async () => {
       project,
       awsAccountId,
       awsRegion,
-      hostedZoneId,
-      hostname,
+      // hostedZoneId,
+      certManagerNamespaceName,
       eksHash,
-      acmeEmail,
     }, { provider: k8sProvider })
 
     return certManagerStackOutput
@@ -151,12 +147,28 @@ const main = async () => {
     const { EmissaryStack } = await import('./pulumi/stacks/emissary')
     const emissaryStackOutput = new EmissaryStack('emissary-stack', {
       emissaryNamespaceName,
-      // emissaryListenerLabels: emissaryListenerLabels,
-      hostname,
+    }, { provider: k8sProvider })
+    return emissaryStackOutput
+  }
+
+  /**
+   * Stack: tls
+   */
+  if (stack === 'tls') {
+    const hostname = config.require('hostname')
+    const acmeEmail = config.require('acme_email')
+
+    const { TlsStack } = await import('./pulumi/stacks/tls')
+    const tlsStackOutput = new TlsStack('tls-stack', {
+      awsRegion,
+      acmeEmail,
+      emissaryNamespaceName,
+      certManagerNamespaceName,
+      hostnames: [hostname],
       rootDomainTlsSecretName,
       subdomainWildcardTlsSecretName,
     }, { provider: k8sProvider })
-    return emissaryStackOutput
+    return tlsStackOutput
   }
 
   /**
@@ -172,6 +184,7 @@ const main = async () => {
    * Stack: kube-prometheus-stack
    */
   if (stack === 'kube-prometheus-stack') {
+    const grafanaHostname = config.require('hostname')
     const grafanaUser = config.require('grafana_user')
     const grafanaPassword = config.requireSecret('grafana_password').apply(password => password)
 
@@ -180,24 +193,13 @@ const main = async () => {
       kubePrometheusStackNamespaceName,
       grafanaUser,
       grafanaPassword,
-    }, { provider: k8sProvider })
-
-    return kubePrometheusStackStackOutput
-  }
-
-  /**
-   * Stack: grafana-dashboard
-   */
-  if (stack === 'grafana-dashboard') {
-    const { GrafanaDashboardStack } = await import('./pulumi/stacks/grafana-dashboard')
-    const grafanaDashboardStackOutput = new GrafanaDashboardStack('grafana-dashboard-stack', {
       hostname: grafanaHostname,
       emissaryNamespaceName,
       tlsSecretName: subdomainWildcardTlsSecretName,
       qualifiedSvcName: `kube-prometheus-stack-grafana.${kubePrometheusStackNamespaceName}`,
     }, { provider: k8sProvider })
 
-    return grafanaDashboardStackOutput
+    return kubePrometheusStackStackOutput
   }
 
   // /**
@@ -246,12 +248,18 @@ const main = async () => {
 
     const { AppStack } = await import('./pulumi/stacks/app')
     const appStackOutput = new AppStack(`app-${stackEnv}-stack`, {
-      imageName: `${project}-${stackEnv}-app-image`,
-      imageContext: projectRootPath,
-      imageDockerfile: './Dockerfile.prod',
+      projectRootPath,
       appSvcName: appStagingSvcName, // must be unique,
       appNamespaceName: appStagingNamespaceName,
-      // containerEnvs: dbContainerEnvs,
+      image: {
+        name: `${project}-${stackEnv}-app-image`,
+        context: projectRootPath,
+        dockerfile: './Dockerfile.prod',
+      },
+      container: {
+        port: 4000, // GOTCHA: containerPort must match the port of the server running in the container
+        // envs: dbContainerEnvs,
+      }
     }, { provider: k8sProvider })
 
     return appStackOutput
@@ -261,6 +269,8 @@ const main = async () => {
    * Stack: app-staging-ingress
    */
   if (stack === 'app-staging-ingress') {
+    const stagingHostname = config.require('hostname')
+
     const { AppIngressStack } = await import('./pulumi/stacks/app-ingress')
     const appStagingIngressStackOutput = new AppIngressStack('app-staging-ingress-stack', {
       namePrefix: 'app-staging',

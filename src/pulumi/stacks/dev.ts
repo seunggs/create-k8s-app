@@ -5,8 +5,6 @@ import * as docker from '@pulumi/docker'
 import * as awsx from '@pulumi/awsx'
 import { getRootEnvs } from '../helpers'
 
-const rootEnvs = getRootEnvs({ format: 'string' })
-
 export interface DevStackArgs {
   projectRootPath: string,
   config: pulumi.Config,
@@ -25,13 +23,15 @@ export class DevStack extends pulumi.ComponentResource {
       stackEnv,
     } = args
 
+    const rootEnvs = getRootEnvs(projectRootPath, { format: 'string' })
     const frontendDirPath = path.resolve(projectRootPath, 'frontend')
     const containerAppPath = '/app'
 
     const network = new docker.Network('net')
 
     // Handle pg
-    const pgVolume = new docker.Volume('pg_data')
+    const pgVolumeName = `${project}-db-data`
+    const pgVolume = new docker.Volume(pgVolumeName, { name: pgVolumeName })
     const pgImage = new docker.RemoteImage(`${project}-${stackEnv}-postgres-image`, {
       name: 'postgres:13.3',
       keepLocally: true, // don't delete the image from the local machine when deleting this resource.

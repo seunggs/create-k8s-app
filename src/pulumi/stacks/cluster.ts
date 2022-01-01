@@ -8,6 +8,7 @@ export interface ClusterStackArgs {
   project: string,
   clusterAdminRole: aws.iam.Role,
   developerRole: aws.iam.Role,
+  keyPairName?: string,
   encryptionConfigKeyArn?: string, // AWS KMS Key ARN to use with the encryption configuration for the cluster (https://aws.amazon.com/about-aws/whats-new/2020/03/amazon-eks-adds-envelope-encryption-for-secrets-with-aws-kms/)
 }
 
@@ -32,6 +33,7 @@ export class ClusterStack extends pulumi.ComponentResource {
       project,
       clusterAdminRole,
       developerRole,
+      keyPairName,
       encryptionConfigKeyArn,
     } = args
     const clusterName = `${project}-cluster`
@@ -108,13 +110,9 @@ export class ClusterStack extends pulumi.ComponentResource {
     const defaultNodeGroup = new eks.ManagedNodeGroup(defaultNodeGroupName, {
       cluster: {
         ...cluster.core,
-        // nodeGroupOptions: {
-        //   autoScalingGroupTags: {
-        //     // Required for Cluster Autoscaler to work with eks
-        //     [`k8s.io/cluster-autoscaler/${clusterName}`]: 'owned',
-        //     'k8s.io/cluster-autoscaler/enabled': 'TRUE',
-        //   },
-        // }
+        nodeGroupOptions: {
+          ...keyPairName ? { keyName: keyPairName } : {}, // to access EC2 instances in the cluster via ssh
+        },  
       },
       capacityType: 'ON_DEMAND',
       instanceTypes: ['t3.medium'],

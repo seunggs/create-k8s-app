@@ -156,10 +156,9 @@ interface CertManagerArgs {
   project: string,
   awsAccountId: string,
   awsRegion: string,
-  hostedZoneId: string,
-  hostname: string,
+  certManagerNamespaceName: string,
+  // hostedZoneId: string,
   eksHash: pulumi.Output<string>,
-  acmeEmail: string,
 }
 
 export class CertManager extends pulumi.ComponentResource {
@@ -170,14 +169,12 @@ export class CertManager extends pulumi.ComponentResource {
       project,
       awsAccountId,
       awsRegion,
-      hostedZoneId,
-      hostname,
+      certManagerNamespaceName,
+      // hostedZoneId,
       eksHash,
-      acmeEmail,
     } = args
 
     const certManagerName = 'cert-manager'
-    const certManagerNamespaceName = 'cert-manager'
     const certManagerNamespace = new k8s.core.v1.Namespace(certManagerNamespaceName, {
       metadata: { name: certManagerNamespaceName },
     }, { parent: this })
@@ -237,42 +234,6 @@ export class CertManager extends pulumi.ComponentResource {
       },
     }, { parent: this, dependsOn: [certManagerNamespace, certManagerRole] })
     // certManagerRoleArn.apply(t => console.log('certManagerRoleArn', t))
-
-    /**
-     * Set up ClusterIssuer (cluster level tls issuer)
-     */
-    const clusterIssuer = new k8s.apiextensions.CustomResource(`${name}-cluster-issuer`, {
-      apiVersion: 'cert-manager.io/v1',
-      kind: 'ClusterIssuer',
-      metadata: {
-        name: 'letsencrypt-dns-issuer',
-        namespace: certManagerNamespaceName,
-      },
-      spec: {
-        acme: {
-          // Let's Encrypt will use this to contact you about expiring
-          // certificates, and issues related to your account.
-          email: acmeEmail,
-          server: 'https://acme-staging-v02.api.letsencrypt.org/directory',
-          // server: 'https://acme-v02.api.letsencrypt.org/directory',
-          privateKeySecretRef: {
-            // Secret resource that will be used to store the account's private key.
-            name: 'letsencrypt-pk-secret',
-          },
-          solvers: [{
-            selector: {
-              dnsZones: [hostname]
-            },
-            dns01: {
-              route53: {
-                region: awsRegion,
-                hostedZoneID: hostedZoneId,
-              }
-            }
-          }]
-        }
-      }
-    }, { parent: this, dependsOn: [certManager] })
 
     this.registerOutputs()
   }

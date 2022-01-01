@@ -168,25 +168,28 @@ async function handleInit(cliOptions: CliOptions) {
   spinner.succeed(successColor(`Successfully exported kubeconfig for kubectl`))
 
   // Setup cert-manager
-  const certManagerStackConfigMap = {
-    'hosted_zone_id': { value: hostedZoneId },
-    'acme_email': { value: acmeEmail },
-  }
-  await pulumiA.stackUp('cert-manager', { createPulumiProgram: () => mainPulumiProgram, configMap: certManagerStackConfigMap })
+  await pulumiA.stackUp('cert-manager', { createPulumiProgram: () => mainPulumiProgram })
 
   // Set up Emissary
   await pulumiA.stackUp('emissary', { createPulumiProgram: () => mainPulumiProgram })
+
+  // Set up TLS
+  const tlsStackConfigMap = {
+    'hostname': { value: hostname },
+    'acme_email': { value: acmeEmail },
+  }
+  await pulumiA.stackUp('tls', { createPulumiProgram: () => mainPulumiProgram, configMap: tlsStackConfigMap })
 
   // Set up Dapr
   await pulumiA.stackUp('dapr', { createPulumiProgram: () => mainPulumiProgram })
 
   // Set up Kube Prometheus Stack (end-to-end k8s monitoring using prometheus, grafana, etc)
   const kubePrometheusStackConfigMap = {
+    'hostname': { value: hostname },
     'grafana_user': { value: grafanaUser },
     'grafana_password': { value: grafanaPassword, secret: true },
   }
   await pulumiA.stackUp('kube-prometheus-stack', { createPulumiProgram: () => mainPulumiProgram, configMap: kubePrometheusStackConfigMap })
-  await pulumiA.stackUp('grafana-dashboard', { createPulumiProgram: () => mainPulumiProgram })
 
   console.info(gradient.pastel(`\n🎉 Successfully created '${projectName}' project\n`))
   console.timeEnd('Done in')
@@ -237,7 +240,6 @@ async function handleApp(cliOptions: CliOptions) {
   simpleStore.setState('globalPulumiConfigMap', {
     'aws:region': { value: awsRegion },
     'pulumi_organization': { value: pulumiOrganization },
-    'hostname': { value: hostname },
   })
 
   // First set the cli execution context so that mainPulumiProgram will get the stack name from pulumiStackUp func
@@ -267,10 +269,16 @@ async function handleApp(cliOptions: CliOptions) {
    * 
    *    NOTE: order matters
    */
+  
   // Set up staging app
   await pulumiA.stackUp('app-staging-init', { createPulumiProgram: () => mainPulumiProgram })
   await pulumiA.stackUp('app-staging', { createPulumiProgram: () => mainPulumiProgram })
-  await pulumiA.stackUp('app-staging-ingress', { createPulumiProgram: () => mainPulumiProgram })
+  
+  // Set up staging app ingress
+  const appStagingIngressStackConfigMap = {
+    'hostname': { value: hostname },
+  }
+  await pulumiA.stackUp('app-staging-ingress', { createPulumiProgram: () => mainPulumiProgram, configMap: appStagingIngressStackConfigMap })
 
   // // Set up prod app
   // await pulumiA.stackUp('app-prod-init', { createPulumiProgram: () => mainPulumiProgram })
@@ -363,11 +371,13 @@ async function handleDestroy(cliOptions: CliOptions) {
   await pulumiA.stackDestroy('db-staging', { remove: removeStacks })
 
   // Destroy monitoring
-  await pulumiA.stackDestroy('grafana-dashboard', { remove: removeStacks })
   await pulumiA.stackDestroy('kube-prometheus-stack', { remove: removeStacks })
 
   // Destroy Dapr
   await pulumiA.stackDestroy('dapr', { remove: removeStacks })
+
+  // Destroy TLS
+  await pulumiA.stackDestroy('tls', { remove: removeStacks })
 
   // Destroy Emissary
   await pulumiA.stackDestroy('emissary', { remove: removeStacks })

@@ -31,18 +31,21 @@ Underneath, this package uses Dapr and Emissary Ingress (a.k.a. Ambassador) to s
 * Autoscaling for both nodes (via Karpenter) and pods (via Horizontal Pod Autoscaler)
 * Zero downtime deployment
 * Easy rollbacks
-* Flexible deployment options such as blue/green or canary deployments
-  
+* Flexible deployment options such as blue/green or canary deployments (via Emissary Ingress)
+* Extra security features like mtls built in (via Dapr - note that mtls is only enabled if you use Dapr service)
+* Monitoring (via Prometheus and Grafana)
+
 ### What's included
 * AWS EKS cluster with Managed Node Group: Defaults to `t3.medium` instances with disk space of 30GB; 4x desired nodes (i.e. EC2 instances), 4x min nodes, and 20x max nodes
 * Karpenter: If there are pods pending due to lack of nodes, Karpenter will automatically spin up more nodes in the cluster
 * Custom domain: Use your own custom domain by default
 * Https by default: Cert-manager enables https traffic to the cluster with auto-renewed Let's Encrypt certificates
-* Emissary Ingress: Emissary Ingress is an API gateway and makes it easy to control routing to services including ingress (i.e. entrypoint) for the cluster
-* Monitoring via Kube Prometheus Stack: Monitoring with Prometheus and Grafana is enabled by default. Login to Grafana using the credentials you set with CLI by visiting grafana.your-domain.com
-* (Optional) AWS RDS instance
+* API gateway and routing: Emissary Ingress is an API gateway and makes it easy to control routing to services including ingress (i.e. entrypoint) for the cluster - please see Emissary Ingress documentation for more details
+* Dapr: Dapr has many features as easy service invokacation, security between services (mtls), pub/sub - please see Dapr documentation for more details
+* Monitoring: Monitoring with Prometheus and Grafana is enabled by default. Login to Grafana using the credentials you set in the ckc-config.json by visiting grafana.your-domain.com
+<!-- * (Optional) AWS RDS instance
   * Staging DB: Defaults to `db.t3.micro` with 5GB of storage and 50GB of max storage
-  * Prod DB: Defaults to `db.t3.small` with 20GB of storage and 1000GB of max storage
+  * Prod DB: Defaults to `db.t3.small` with 20GB of storage and 1000GB of max storage -->
 * (Optional) App: make sure to change the settings for your use case - consider the default setup as more of an example (built for running a React/Express app)
   * Staging app: routes to `staging.<your-domain>` (i.e. `staging.sidetrek.com`)
   * Prod app: routes to `*.<your-domain>` (i.e. `*.sidetrek.com`)
@@ -53,7 +56,7 @@ This project is completely open-source but the resources it provisions will cost
 2. AWS: With 1x EKS cluster (~$70/mo), 4x t3.medium EC2 instances (~$120/mo), the default setup will cost you ~$200/mo. If you use the RDS option, that'll cost you extra depending on your storage requirements.
 
 
-## <a name="creating-k8s-app"></a>Creating a k8s app
+## <a name="creating-k8s-app"></a>Creating k8s app
 
 ### Prerequisites
 1. Install `aws` cli by following the instructions [here](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html)
@@ -117,8 +120,6 @@ Options:
 
 If you'd like to see the whole project setup from start to finish, please see [tutorials section](#tutorials). 
 
-### (Optional) Set up RDS
-
 ### (Optional) Set up a Create React App + Express app
 1. Make sure `Dockerfile.prod` is present in the project root dir. This Dockerfile will be used to build and push the image to ECR. 
 
@@ -164,10 +165,13 @@ logs
 kubeconfig*
 ```
 
-2. Run `npx create-knative-cluster app`
+2. Run `npx ckc app`
 
 ### (Optional) Set up dev
-Coming soon
+1. Prerequisite: this step assumes you've copied pulumi files for local management by running `npx ckc copy-pulumi-files`.
+2. If not created already during Pulumi project setup, run `pulumi stack init dev` to create the dev stack. 
+3. Review and customize the dev setup in `/pulumi/stacks/dev`.
+4. Run `pulumi stack up` (this will run `index.ts` copied from the prerequisite step 1 above and run the Pulumi dev stack).
 
 ### Customizing the default setup
 You can customize the default setup simply by updating the stacks via Pulumi cli once the project setup is complete. 
@@ -266,3 +270,8 @@ To See the result:
 ```
 fortio report -json result.json
 ```
+
+## Troubleshooting
+
+### Docker image attempts to push to wrong ECR acccount
+* If `awsx.ecr.buildAndPushImage` is attempting to push to a wrong AWS account (because you're working on two different aws accounts, for example), 

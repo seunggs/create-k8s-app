@@ -1,15 +1,27 @@
+import * as path from 'path'
 import * as pulumi from '@pulumi/pulumi'
 import * as awsx from '@pulumi/awsx'
 import * as k8s from '@pulumi/kubernetes'
 import { AppAutoscaleStep, AppBuildStep, AppDeployStep, K8sContainerEnvVar } from '../component-resources/app'
 
+export interface AppStackImageArgs {
+  name: string,
+  context: string,
+  dockerfile: string,
+}
+
+export interface AppStackContainerArgs {
+  port: number,
+  envs?: K8sContainerEnvVar[],
+  resources?: any,
+}
+
 export interface AppStackArgs {
-  imageName: string,
-  imageContext: string,
-  imageDockerfile: string,
+  projectRootPath: string,
   appSvcName: string,
   appNamespaceName: string,
-  containerEnvs?: K8sContainerEnvVar[],
+  image: AppStackImageArgs,
+  container: AppStackContainerArgs,
 }
 
 export class AppStack extends pulumi.ComponentResource {
@@ -17,27 +29,43 @@ export class AppStack extends pulumi.ComponentResource {
     super('custom:stack:AppStack', name, {}, opts)
 
     const {
-      imageName,
-      imageContext,
-      imageDockerfile,
+      projectRootPath,
       appSvcName,
       appNamespaceName,
-      containerEnvs,
+      image: {
+        name: imageName,
+        context,
+        dockerfile,
+      },
+      container: {
+        port,
+        envs,
+        resources,
+      },
     } = args
+
+    require('dotenv').config({ path: path.resolve(projectRootPath, '.env') })
+
+    // NOTE: these frontend envs should also be manually included in Dockerfile
+    const frontendEnvsAsArgs = {}
 
     // Build app - name is used as ECR repo name
     const { imageUrl } = new AppBuildStep(imageName, {
-      context: imageContext,
-      dockerfile: imageDockerfile,
+      context,
+      dockerfile,
+      args: frontendEnvsAsArgs,
     }, { parent: this })
 
     // Deploy app svc
     const appDeployStep = new AppDeployStep(appSvcName, {
       namespace: appNamespaceName,
       svcName: appSvcName,
-      image: imageUrl,
-      containerPort: 4000, // GOTCHA: containerPort must match the port of the server running in the container
-      ...containerEnvs ? { containerEnvs } : {},
+      container: {
+        image: imageUrl,
+        port, 
+        ...envs ? { envs } : {},
+        ...resources ? { resources } : {},
+      }
     }, { parent: this })
 
     const appAutoscaleStep = new AppAutoscaleStep(appSvcName, {

@@ -6,8 +6,6 @@ import * as chalk from 'chalk'
 import { ConfigMap } from '@pulumi/pulumi/automation'
 import * as yaml from 'js-yaml'
 
-require('dotenv').config()
-
 const cwd = process.cwd() // dir where the cli is run
 
 /**
@@ -15,9 +13,10 @@ const cwd = process.cwd() // dir where the cli is run
  *    format: one of 'string' or 'object'
  *    exclude: env variable keys to exclude
  */
-export const getRootEnvs = ({ format = 'object', exclude = [] } = {}) => {
+export const getRootEnvs = (projectRootPath: string, { format = 'object', exclude = [] } = {}) => {
+  const dotenv = require('dotenv')
+  const envsObj = dotenv.parse(fs.readFileSync(path.resolve(projectRootPath, '.env')))
   const envExclusions = ['AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY', ...exclude]
-  const envsObj = process.env
   const envKeys = Object.keys(envsObj)
   const envsArr = envKeys
     .reduce((prev, curr) => [...prev, { name: curr, value: envsObj[curr] }], [] as any[])
