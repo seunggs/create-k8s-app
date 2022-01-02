@@ -128,7 +128,7 @@ async function handleInit(cliOptions: CliOptions) {
     globalConfigMap: globalPulumiConfigMap,
     beforePulumiRun: ({ stackName }) => {
       // Set the current stack so that mainPulumiProgram will have the right stack
-      simpleStore.setState('currentStack', stackName)
+      simpleStore.setState('currentStack', stackName.replace(`${pulumiOrganization}/`, ''))
     },
     afterPulumiRun: async ({ stackName, configMap }) => {
       // Set the globalConfigs and configs in cli as well so that Pulumi can be locally managed (i.e. Pulumi.<stack>.yaml file is filled with right configs)
@@ -149,43 +149,43 @@ async function handleInit(cliOptions: CliOptions) {
   }
   const clusterOutputs = await pulumiA.stackUp(`${pulumiOrganization}/cluster`, { createPulumiProgram: () => mainPulumiProgram, configMap: clusterStackConfigMap })
 
-  // Set up Karpenter for autoscaling nodes based on k8s pod requirements
-  await pulumiA.stackUp(`${pulumiOrganization}/karpenter`, { createPulumiProgram: () => mainPulumiProgram })
+  // // Set up Karpenter for autoscaling nodes based on k8s pod requirements
+  // await pulumiA.stackUp(`${pulumiOrganization}/karpenter`, { createPulumiProgram: () => mainPulumiProgram })
 
-  // Set up kubectl
-  spinner.start(infoColor(`Exporting kubeconfig for kubectl...`))
-  await fs.writeFile(path.resolve(cwd, 'kubeconfig-devs.json'), JSON.stringify(clusterOutputs.kubeconfig.value, null, 2))
-  if (useDirenv) {
-    runCliCmdSync(`direnv allow .`)
-    await runCliCmd('echo export KUBECONFIG=$(pwd)/kubeconfig-devs.json > .envrc')
-  } else {
-    await runCliCmd('export KUBECONFIG=$(pwd)/kubeconfig-devs.json')
-  }
-  spinner.succeed(successColor(`Successfully exported kubeconfig for kubectl`))
+  // // Set up kubectl
+  // spinner.start(infoColor(`Exporting kubeconfig for kubectl...`))
+  // await fs.writeFile(path.resolve(cwd, 'kubeconfig-devs.json'), JSON.stringify(clusterOutputs.kubeconfig.value, null, 2))
+  // if (useDirenv) {
+  //   runCliCmdSync(`direnv allow .`)
+  //   await runCliCmd('echo export KUBECONFIG=$(pwd)/kubeconfig-devs.json > .envrc')
+  // } else {
+  //   await runCliCmd('export KUBECONFIG=$(pwd)/kubeconfig-devs.json')
+  // }
+  // spinner.succeed(successColor(`Successfully exported kubeconfig for kubectl`))
 
-  // Setup cert-manager
-  await pulumiA.stackUp(`${pulumiOrganization}/cert-manager`, { createPulumiProgram: () => mainPulumiProgram })
+  // // Setup cert-manager
+  // await pulumiA.stackUp(`${pulumiOrganization}/cert-manager`, { createPulumiProgram: () => mainPulumiProgram })
 
-  // Set up Emissary
-  await pulumiA.stackUp(`${pulumiOrganization}/emissary`, { createPulumiProgram: () => mainPulumiProgram })
+  // // Set up Emissary
+  // await pulumiA.stackUp(`${pulumiOrganization}/emissary`, { createPulumiProgram: () => mainPulumiProgram })
 
-  // Set up TLS
-  const tlsStackConfigMap = {
-    'hostname': { value: hostname },
-    'acme_email': { value: acmeEmail },
-  }
-  await pulumiA.stackUp(`${pulumiOrganization}/tls`, { createPulumiProgram: () => mainPulumiProgram, configMap: tlsStackConfigMap })
+  // // Set up TLS
+  // const tlsStackConfigMap = {
+  //   'hostname': { value: hostname },
+  //   'acme_email': { value: acmeEmail },
+  // }
+  // await pulumiA.stackUp(`${pulumiOrganization}/tls`, { createPulumiProgram: () => mainPulumiProgram, configMap: tlsStackConfigMap })
 
-  // Set up Dapr
-  await pulumiA.stackUp(`${pulumiOrganization}/dapr`, { createPulumiProgram: () => mainPulumiProgram })
+  // // Set up Dapr
+  // await pulumiA.stackUp(`${pulumiOrganization}/dapr`, { createPulumiProgram: () => mainPulumiProgram })
 
-  // Set up Kube Prometheus Stack (end-to-end k8s monitoring using prometheus, grafana, etc)
-  const kubePrometheusStackConfigMap = {
-    'hostname': { value: hostname },
-    'grafana_user': { value: grafanaUser },
-    'grafana_password': { value: grafanaPassword, secret: true },
-  }
-  await pulumiA.stackUp(`${pulumiOrganization}/kube-prometheus-stack`, { createPulumiProgram: () => mainPulumiProgram, configMap: kubePrometheusStackConfigMap })
+  // // Set up Kube Prometheus Stack (end-to-end k8s monitoring using prometheus, grafana, etc)
+  // const kubePrometheusStackConfigMap = {
+  //   'hostname': { value: hostname },
+  //   'grafana_user': { value: grafanaUser },
+  //   'grafana_password': { value: grafanaPassword, secret: true },
+  // }
+  // await pulumiA.stackUp(`${pulumiOrganization}/kube-prometheus-stack`, { createPulumiProgram: () => mainPulumiProgram, configMap: kubePrometheusStackConfigMap })
 
   console.info(gradient.pastel(`\n🎉 Successfully created '${projectName}' project\n`))
   console.timeEnd('Done in')
@@ -251,7 +251,7 @@ async function handleApp(cliOptions: CliOptions) {
     globalConfigMap: globalPulumiConfigMap,
     beforePulumiRun: ({ stackName }) => {
       // Set the current stack so that mainPulumiProgram will have the right stack
-      simpleStore.setState('currentStack', stackName)
+      simpleStore.setState('currentStack', stackName.replace(`${pulumiOrganization}/`, ''))
     },
     afterPulumiRun: async ({ stackName, configMap }) => {
       // Set the globalConfigs and configs in cli as well so that Pulumi can be locally managed (i.e. Pulumi.<stack>.yaml file is filled with right configs)

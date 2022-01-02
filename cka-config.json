@@ -7,7 +7,6 @@
     "useDirenv": true
   },
   "destroy": {
-    "removeStacks": true,
-    "keepCluster": false
+    "removeStacks": true
   }
 }

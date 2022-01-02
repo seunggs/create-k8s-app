@@ -13,10 +13,11 @@ const cliOptions = simpleStore.getState('cliOptions')
 const main = async () => {
   // console.log('cli execution context', cliExecCtx)
   const config = new pulumi.Config()
-
+  
   const project = pulumi.getProject()
   const projectRootPath = cliExecCtx === 'cka' ? cwd : path.resolve(__dirname)
   const stack = cliExecCtx === 'cka' ? simpleStore.getState('currentStack') : pulumi.getStack()
+  console.log('stack', stack)
   const organization = config.require('pulumi_organization')
   const { accountId: awsAccountId } = await aws.getCallerIdentity({})
   const { name: awsRegion } = await aws.getRegion()
