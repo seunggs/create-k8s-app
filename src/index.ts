@@ -312,13 +312,15 @@ async function handleDestroy(cliOptions: CliOptions) {
   console.info(infoColor('\nDestroying project...\n'))
   console.time('Done in')
 
+  let { init: initConfigOptions } = await import(`${cwd}/cka-config.json`)
   let { destroy: configOptions } = await import(`${cwd}/cka-config.json`)
 
-  if (!configOptions) {
+  if (!configOptions || !initConfigOptions) {
     throw new Error('Must provide "cka-config.json" in your project root folder')
   }
 
-  const { pulumiOrganization, removeStacks = true } = configOptions
+  const { pulumiOrganization } = initConfigOptions
+  const { removeStacks = true } = configOptions
   const { keepCluster, debug } = cliOptions
   console.log('keepCluster', keepCluster)
 
