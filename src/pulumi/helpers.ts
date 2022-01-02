@@ -84,34 +84,15 @@ export const runCliCmdSync = (cmd: string) => {
   return stdout
 }
 
-export const createPulumiStackViaCli = (orgName: string, stackName: string) => {
-  const prefixedStackName = `${orgName}/${stackName}`
-  try {
-    runCliCmdSync(`pulumi stack init ${prefixedStackName}`)
-  } catch (err) {
-    const errorMessage = (err as Error).toString()
-    if (errorMessage.includes('already exists')) {
-      return
-    } else {
-      throw new Error(errorMessage)
-    }
-  }
+export const runPulumiStackCmd = (stackName: string, cmd: string) => {
+  runCliCmdSync(`pulumi stack select ${stackName} && ${cmd}`)
 }
 
-export const createPulumiStacksViaCli = (orgName: string, stackNames: string[]) => {
-  stackNames.forEach(stackName => createPulumiStackViaCli(orgName, stackName))
-}
-
-export const runPulumiStackCmd = (orgName: string, stackName: string, cmd: string) => {
-  const prefixedStackName = `${orgName}/${stackName}`
-  runCliCmdSync(`pulumi stack select ${prefixedStackName} && ${cmd}`)
-}
-
-export const setPulumiConfigsViaCli = (orgName: string, stackName: string, configMap: ConfigMap) => {
+export const setPulumiConfigsViaCli = (stackName: string, configMap: ConfigMap) => {
   const configMapKeys = Object.keys(configMap)
   configMapKeys.forEach(configMapKey => {
     const configMapVal = configMap[configMapKey]
     const { value, secret } = configMapVal
-    runPulumiStackCmd(orgName, stackName, `pulumi config set ${configMapKey} ${value}${secret ? ' --secret' : ''}`)
+    runPulumiStackCmd(stackName, `pulumi config set ${configMapKey} ${value}${secret ? ' --secret' : ''}`)
   })
 }

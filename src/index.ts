@@ -132,7 +132,7 @@ async function handleInit(cliOptions: CliOptions) {
     },
     afterPulumiRun: async ({ stackName, configMap }) => {
       // Set the globalConfigs and configs in cli as well so that Pulumi can be locally managed (i.e. Pulumi.<stack>.yaml file is filled with right configs)
-      await setPulumiConfigsViaCli(pulumiOrganization, stackName, { ...globalPulumiConfigMap, ...configMap })
+      await setPulumiConfigsViaCli(stackName, { ...globalPulumiConfigMap, ...configMap })
     },
   })
   spinner.succeed(successColor('Successfully completed prep'))
@@ -255,7 +255,7 @@ async function handleApp(cliOptions: CliOptions) {
     },
     afterPulumiRun: async ({ stackName, configMap }) => {
       // Set the globalConfigs and configs in cli as well so that Pulumi can be locally managed (i.e. Pulumi.<stack>.yaml file is filled with right configs)
-      await setPulumiConfigsViaCli(pulumiOrganization, stackName, { ...globalPulumiConfigMap, ...configMap })
+      await setPulumiConfigsViaCli(stackName, { ...globalPulumiConfigMap, ...configMap })
     },
   })
   spinner.succeed(successColor('Successfully completed prep'))
