@@ -10,7 +10,7 @@ Once the cluster is set up, you can use Pulumi to manage or add resources using 
 
 If something doesn't work, please file an issue.
 
-<!-- If you have questions or need help, please join the [Slack channel](https://create-knative-cluster.slack.com) -->
+<!-- If you have questions or need help, please join the [Slack channel](https://create-k8s-app.slack.com) -->
 
 💕 Any feedback or contribution is welcome and appreciated!
 
@@ -42,7 +42,7 @@ Underneath, this package uses Dapr and Emissary Ingress (a.k.a. Ambassador) to s
 * Https by default: Cert-manager enables https traffic to the cluster with auto-renewed Let's Encrypt certificates
 * API gateway and routing: Emissary Ingress is an API gateway and makes it easy to control routing to services including ingress (i.e. entrypoint) for the cluster - please see Emissary Ingress documentation for more details
 * Dapr: Dapr has many features as easy service invokacation, security between services (mtls), pub/sub - please see Dapr documentation for more details
-* Monitoring: Monitoring with Prometheus and Grafana is enabled by default. Login to Grafana using the credentials you set in the ckc-config.json by visiting grafana.your-domain.com
+* Monitoring: Monitoring with Prometheus and Grafana is enabled by default. Login to Grafana using the credentials you set in the cka-config.json by visiting grafana.your-domain.com
 <!-- * (Optional) AWS RDS instance
   * Staging DB: Defaults to `db.t3.micro` with 5GB of storage and 50GB of max storage
   * Prod DB: Defaults to `db.t3.small` with 20GB of storage and 1000GB of max storage -->
@@ -52,7 +52,7 @@ Underneath, this package uses Dapr and Emissary Ingress (a.k.a. Ambassador) to s
 
 ### <a name="cost-considerations"></a>Cost considerations
 This project is completely open-source but the resources it provisions will cost you in potentially two ways.
-1. Pulumi: Whether you're on a free or paid plan, the default setup should cost you nothing. On a paid plan, it'll come pretty close as create-knative-cluster will provision 200+ resources.
+1. Pulumi: Whether you're on a free or paid plan, the default setup should cost you nothing. On a paid plan, it'll come pretty close as create-k8s-app will provision 200+ resources.
 2. AWS: With 1x EKS cluster (~$70/mo), 4x t3.medium EC2 instances (~$120/mo), the default setup will cost you ~$200/mo. If you use the RDS option, that'll cost you extra depending on your storage requirements.
 
 
@@ -73,7 +73,7 @@ This project is completely open-source but the resources it provisions will cost
    2. Once successfully installed, run `direnv allow .` in the project root directory
 
 ### Get started
-1. Create ckc-config.json in your project root directory and configure it to your needs.
+1. Create cka-config.json in your project root directory and configure it to your needs.
 ```
 {
   "init": {
@@ -93,7 +93,7 @@ This project is completely open-source but the resources it provisions will cost
 2. If you're using direnv option, make sure to run `direnv allow .` before proceeding.
 3. Deploy your app to a Kubernetes cluster (🧘🏼‍♀️ please be patient as the entire process can take 30-60 minutes to complete - provisioning AWS EKS alone can take 20+ minutes).
 ```
-npx ckc init
+npx cka init
 ```
 4. Point custom domain to ingress external IP (this is the entry point to the cluster).
    1. Run `kubectl get svc -n emissary` to get the External-IP of `emissary-ingress` Service
@@ -103,15 +103,15 @@ npx ckc init
       * Value: ingress external IP from the previous step
 5. (Optional) Add app related stacks. Please review the settings before running this to fit your use case - use it more as an example.
 ```
-npx ckc app
+npx cka app
 ```
 6. (Optional) Run the following cmd to copy the Pulumi setup files for local management
 ```
-npx ckc copy-pulumi-files
+npx cka copy-pulumi-files
 ```
 7. Destroy the entire project
 ```
-npx ckc destroy
+npx cka destroy
 ```
 Options:
 ```
@@ -165,10 +165,10 @@ logs
 kubeconfig*
 ```
 
-2. Run `npx ckc app`
+2. Run `npx cka app`
 
 ### (Optional) Set up dev
-1. Prerequisite: this step assumes you've copied pulumi files for local management by running `npx ckc copy-pulumi-files`.
+1. Prerequisite: this step assumes you've copied pulumi files for local management by running `npx cka copy-pulumi-files`.
 2. If not created already during Pulumi project setup, run `pulumi stack init dev` to create the dev stack. 
 3. Review and customize the dev setup in `/pulumi/stacks/dev`.
 4. Run `pulumi stack up` (this will run `index.ts` copied from the prerequisite step 1 above and run the Pulumi dev stack).
@@ -199,7 +199,7 @@ DB password and Granafa password entered via CLI is saved as Secrets (which is b
 You can destroy the entire project (assuming you didn't any more resources) by running:
 
 ```
-npx create-knative-cluster destroy
+npx create-k8s-app destroy
 ```
 
 ### Caveats for using this command
@@ -218,15 +218,8 @@ You should be very careful when destroying individual stacks. There are dependen
 ### Caveats
 * Dependencies between stacks:
   * Some stacks are dependent on other stacks which means attempting to destroy the parent stack can fail. For example, `cluster` stack will fail to destroy properly if there are resources still existing in the `cluster`. Be mindful of these dependencies - otherwise, you might have to do a lot of manual cleaning of orphaned resources.
-  * In general, you should destroy things in this order:
-    * App and app related services like RDS which is dependent on cluster services like Knative and Istio, 
-    * Cluster services like Istio, Knative, cert-manager, etc, a
-    * Finally, the cluster itself if necessary
-* Known limitation with `pulumi destroy` for `knative_operator` stack:
-  * You need to destroy the `knative_serving` and `knative_eventing` stacks before destroying `knative_operator`.
-  * By design, destroying Knative Operator does not remove Knative CRDs (in case the CRDs are used in other resources).
 
-## Rollbacks using Knative
+## Rollbacks
 Coming soon
 
 ## CD setup via Git Actions
@@ -245,9 +238,9 @@ Coming soon
 * If destroy operation fails due to timeout (i.e. waiting for some cloud resource state to become 'destroyed'), then:
   * Destroy the resource manually - i.e. via AWS console or aws/kubectl cli
   * Refresh the Pulumi state (this will make sure Pulumi state is again in sync with cloud state): `pulumi refresh` (make sure you're in the right Pulumi stack)
-  * Retry `create-knative-cluster destroy` (or `pulumi destroy` in the stack if destroying manually via Pulumi cli) to destroy the rest of the resources
+  * Retry `create-k8s-app destroy` (or `pulumi destroy` in the stack if destroying manually via Pulumi cli) to destroy the rest of the resources
 
-## <a name="internals"></a>Internals of Create Knative Cluster
+## <a name="internals"></a>Internals of Create K8s App
 This explanation assumes basic understanding of Docker and Kubernetes. If you are not familiar with these topics, there's a lot of great resources on YouTube, such as this great intro series on [Docker](https://youtu.be/3c-iBn73dDE) and [Kubernetes](https://youtu.be/X48VuDVv0do).
 
 ### TL;DR

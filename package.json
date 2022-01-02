@@ -1,5 +1,5 @@
 {
-  "name": "@sidetrek/create-knative-cluster",
+  "name": "@sidetrek/create-k8s-app",
   "version": "0.0.49",
   "type": "commonjs",
   "publishConfig": {
@@ -7,17 +7,16 @@
   },
   "main": "bin/index.js",
   "bin": {
-    "create-knative-cluster": "bin/index.js",
-    "ckc": "bin/index.js"
+    "cka": "bin/index.js"
   },
   "scripts": {
     "build": "tsc -p .",
-    "ckc:init": "ckc init",
-    "start:init": "npm run build && npm run ckc:init",
-    "ckc:app": "ckc app",
-    "start:app": "npm run build && npm run ckc:app",
-    "ckc:destroy": "ckc destroy",
-    "destroy": "npm run build && npm run ckc:destroy",
+    "cka:init": "cka init",
+    "start:init": "npm run build && npm run cka:init",
+    "cka:app": "cka app",
+    "start:app": "npm run build && npm run cka:app",
+    "cka:destroy": "cka destroy",
+    "destroy": "npm run build && npm run cka:destroy",
     "server:prod": "npx nodemon server/server.js",
     "release": "npm run build && np",
     "test": "echo \"No test specified\""

@@ -46,10 +46,10 @@ program
   // .requiredOption('--acme-email <ACME email>', 'https certificate issuer (Let\'s Encrypt) will use this to contact you about expiring certificates, and issues related to your account')
   // .option('--encryption-config-key-arn', 'AWS KMS Key ARN to use with the encryption configuration for the cluster')
   // .option('--use-direnv', 'to enable directory specific kubectl setup; defaults to false', false)
-  // .option('--grafana-user <grafana user name>', 'to enable directory specific kubectl setup; defaults to ckcadmin', 'ckcadmin')
-  // .option('--grafana-password <grafana password>', 'to enable directory specific kubectl setup; defaults to ckcadminpass', 'ckcadminpass')
+  // .option('--grafana-user <grafana user name>', 'to enable directory specific kubectl setup; defaults to ckaadmin', 'ckaadmin')
+  // .option('--grafana-password <grafana password>', 'to enable directory specific kubectl setup; defaults to ckaadminpass', 'ckaadminpass')
   .option('--debug', 'show logs', false)
-  .description('create a Knative cluster in AWS EKS using Pulumi')
+  .description('create a Kubernetes cluster in AWS EKS using Pulumi')
   .showHelpAfterError('(add --help for additional information)')
   .action(handleInit)
 
@@ -61,17 +61,17 @@ program
  *    Separate out infra and app setups - i.e. 2 different cli cmds
  *    TODO: Consider making them separate Pulumi projects
  * 
- *    Pulumi configs: Set Pulumi configs both via Automation API arg and via cli - this ensures that configs are set correctly for ckc cli 
+ *    Pulumi configs: Set Pulumi configs both via Automation API arg and via cli - this ensures that configs are set correctly for cka cli 
  *    execution but also stored locally for local Pulumi management (i.e. Pulumi.<stack>.yaml file will be created)
  */
 async function handleInit(cliOptions: CliOptions) {
   console.info(infoColor('\nInitializing project...\n'))
   console.time('Done in')
 
-  let { init: configOptions } = await import(`${cwd}/ckc-config.json`)
+  let { init: configOptions } = await import(`${cwd}/cka-config.json`)
 
   if (!configOptions) {
-    throw new Error('Must provide "ckc-config.json" in your project root folder')
+    throw new Error('Must provide "cka-config.json" in your project root folder')
   }
 
   const {
@@ -82,8 +82,8 @@ async function handleInit(cliOptions: CliOptions) {
     acmeEmail,
     useDirenv = false,
     encryptionConfigKeyArn,
-    grafanaUser = 'ckcadmin',
-    grafanaPassword = 'ckcadminpass',
+    grafanaUser = 'ckaadmin',
+    grafanaPassword = 'ckaadminpass',
   } = configOptions
 
   const { debug } = cliOptions
@@ -98,7 +98,7 @@ async function handleInit(cliOptions: CliOptions) {
    */
   const spinner = ora().start(infoColor(`Copying Pulumi files to project folder...`))
 
-  if (process.env.CKC_CLI_ENV !== 'development') {
+  if (process.env.CKA_CLI_ENV !== 'development') {
     copyPulumiFiles()
   }
 
@@ -117,7 +117,7 @@ async function handleInit(cliOptions: CliOptions) {
   })
 
   // First set the cli execution context so that mainPulumiProgram will get the stack name from pulumiStackUp func
-  simpleStore.setState('cliExecutionContext', 'ckc')
+  simpleStore.setState('cliExecutionContext', 'cka')
 
   // Must be imported after the cli execution context and other required states are set
   const mainPulumiProgram = await import('./main')
@@ -208,20 +208,20 @@ async function handleApp(cliOptions: CliOptions) {
   console.info(infoColor('\nCreating app...\n'))
   console.time('Done in')
 
-  let { init: configOptions } = await import(`${cwd}/ckc-config.json`)
+  let { init: configOptions } = await import(`${cwd}/cka-config.json`)
 
   if (!configOptions) {
-    throw new Error('Must provide "ckc-config.json" in your project root folder')
+    throw new Error('Must provide "cka-config.json" in your project root folder')
   }
 
   const {
     awsRegion,
     pulumiOrganization,
     hostname,
-    stagingDbUser = 'ckcadmin',
-    stagingDbPassword = 'ckcadminpass',
-    prodDbUser = 'ckcadmin',
-    prodDbPassword = 'ckcadminpass',
+    stagingDbUser = 'ckaadmin',
+    stagingDbPassword = 'ckaadminpass',
+    prodDbUser = 'ckaadmin',
+    prodDbPassword = 'ckaadminpass',
   } = configOptions
 
   const { debug } = cliOptions
@@ -243,7 +243,7 @@ async function handleApp(cliOptions: CliOptions) {
   })
 
   // First set the cli execution context so that mainPulumiProgram will get the stack name from pulumiStackUp func
-  simpleStore.setState('cliExecutionContext', 'ckc')
+  simpleStore.setState('cliExecutionContext', 'cka')
 
   // Must be imported after the cli execution context and other required states are set
   const mainPulumiProgram = await import('./main')
@@ -298,7 +298,7 @@ program
   .action(handleCopyPulumiFiles)
 
 async function handleCopyPulumiFiles(options: CliOptions) {
-  if (process.env.CKC_CLI_ENV !== 'development') {
+  if (process.env.CKA_CLI_ENV !== 'development') {
     console.info(infoColor('\nCopying Pulumi files to project root folder for local management...\n'))
     copyPulumiFiles()
   }
@@ -316,10 +316,10 @@ async function handleDestroy(cliOptions: CliOptions) {
   console.info(infoColor('\nDestroying project...\n'))
   console.time('Done in')
 
-  let { destroy: configOptions } = await import(`${cwd}/ckc-config.json`)
+  let { destroy: configOptions } = await import(`${cwd}/cka-config.json`)
 
   if (!configOptions) {
-    throw new Error('Must provide "ckc-config.json" in your project root folder')
+    throw new Error('Must provide "cka-config.json" in your project root folder')
   }
 
   const { removeStacks = true } = configOptions

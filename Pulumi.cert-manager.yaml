@@ -1,6 +1,0 @@
-config:
-  aws:region: us-west-1
-  create-knative-cluster:acme_email: hello@sidetrek.com
-  create-knative-cluster:hosted_zone_id: Z09102783DPQNXBVBM64X
-  create-knative-cluster:hostname: sidetrek.com
-  create-knative-cluster:pulumi_organization: seunggs
