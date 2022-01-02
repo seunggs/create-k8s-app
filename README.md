@@ -73,6 +73,13 @@ This project is completely open-source but the resources it provisions will cost
    2. Once successfully installed, run `direnv allow .` in the project root directory
 
 ### Get started
+
+```html
+<div style="color: red">
+WARNING: `npx cka init` should only run once (unless you know what you're doing) because it'll overwrite `/index.ts` and all files in `/pulumi` which could wipe our any changes you've made.
+</div>
+```
+
 1. Create cka-config.json in your project root directory and configure it to your needs.
 ```
 {
