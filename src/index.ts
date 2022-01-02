@@ -78,7 +78,6 @@ async function handleInit(cliOptions: CliOptions) {
     awsRegion,
     pulumiOrganization,
     hostname,
-    hostedZoneId,
     acmeEmail,
     useDirenv = false,
     encryptionConfigKeyArn,

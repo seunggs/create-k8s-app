@@ -3,7 +3,6 @@
     "awsRegion": "us-west-1",
     "pulumiOrganization": "seunggs",
     "hostname": "sidetrek.com",
-    "hostedZoneId": "Z09102783DPQNXBVBM64X",
     "acmeEmail": "hello@sidetrek.com",
     "useDirenv": true
   },
