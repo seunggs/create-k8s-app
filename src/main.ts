@@ -57,34 +57,16 @@ const main = async () => {
   }
 
   /**
-   * Stack: identity
-   */
-  if (stack === 'identity') {
-    const { IdentityStack } = await import('./pulumi/stacks/identity')
-    const identityStackOutput = new IdentityStack('cluster-stack', {
-      awsAccountId,
-    })
-
-    return identityStackOutput
-  }
-
-  const identityStackRef = new pulumi.StackReference(`${organization}/${project}/identity`)
-
-  /**
    * Stack: cluster
    */
   if (stack === 'cluster') {
     const keyPairName = config.get('key_pair_name')
     const encryptionConfigKeyArn = config.get('encryption_config_key_arn')
 
-    const clusterAdminRole = identityStackRef.getOutput('clusterAdminRole') as unknown as aws.iam.Role
-    const developerRole = identityStackRef.getOutput('developerRole') as unknown as aws.iam.Role
-
     const { ClusterStack } = await import('./pulumi/stacks/cluster')
     const clusterStackOutput = new ClusterStack('cluster-stack', {
+      awsAccountId,
       project,
-      clusterAdminRole,
-      developerRole,
       ...keyPairName ? { keyPairName } : {},
       ...encryptionConfigKeyArn ? { encryptionConfigKeyArn } : {},
     })

@@ -5,9 +5,8 @@ import * as aws from '@pulumi/aws'
 import * as k8s from '@pulumi/kubernetes'
 
 export interface ClusterStackArgs {
+  awsAccountId: string,
   project: string,
-  clusterAdminRole: aws.iam.Role,
-  developerRole: aws.iam.Role,
   keyPairName?: string,
   encryptionConfigKeyArn?: string, // AWS KMS Key ARN to use with the encryption configuration for the cluster (https://aws.amazon.com/about-aws/whats-new/2020/03/amazon-eks-adds-envelope-encryption-for-secrets-with-aws-kms/)
 }
@@ -30,13 +29,43 @@ export class ClusterStack extends pulumi.ComponentResource {
     super('custom:stack:ClusterStack', name, {}, opts)
 
     const {
+      awsAccountId,
       project,
-      clusterAdminRole,
-      developerRole,
       keyPairName,
       encryptionConfigKeyArn,
     } = args
     const clusterName = `${project}-cluster`
+
+    // IAM roles for different user groups to map to Kubernetes RBAC during cluster creation
+    function createIAMRole(roleName: string): aws.iam.Role {
+      return new aws.iam.Role(`${roleName}`, {
+        assumeRolePolicy: `{
+          "Version": "2012-10-17",
+          "Statement":[
+            {
+              "Sid": "",
+              "Effect": "Allow",
+              "Principal": {
+                "AWS": "arn:aws:iam::${awsAccountId}:root"
+              },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        }`,
+        tags: {
+          clusterAccess: `${roleName}-user`,
+        },
+      })
+    }
+
+    // Administrator AWS IAM clusterAdminRole with full access to all AWS resources
+    const clusterAdminRole = createIAMRole('ClusterAdminRole')
+
+    // // Administer Automation role for use in pipelines, e.g. gitlab CI, Teamcity, etc.
+    // const automationRole = createIAMRole('AutomationRole')
+
+    // Administer Prod role for use in Prod environment
+    const developerRole = createIAMRole('DeveloperRole')
 
     // IAM role for eks managed node group
     const instanceAssumeRolePolicy = aws.iam.getPolicyDocument({
@@ -112,7 +141,7 @@ export class ClusterStack extends pulumi.ComponentResource {
         ...cluster.core,
         nodeGroupOptions: {
           ...keyPairName ? { keyName: keyPairName } : {}, // to access EC2 instances in the cluster via ssh
-        },  
+        },
       },
       capacityType: 'ON_DEMAND',
       instanceTypes: ['t3.medium'],
