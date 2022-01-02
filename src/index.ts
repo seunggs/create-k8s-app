@@ -321,7 +321,7 @@ async function handleDestroy(cliOptions: CliOptions) {
     throw new Error('Must provide "cka-config.json" in your project root folder')
   }
 
-  const { removeStacks = true } = configOptions
+  const { pulumiOrganization, removeStacks = true } = configOptions
   const { keepCluster, debug } = cliOptions
   console.log('keepCluster', keepCluster)
 
@@ -358,36 +358,36 @@ async function handleDestroy(cliOptions: CliOptions) {
    */
 
   // Destroy prod app and db
-  await pulumiA.stackDestroy('app-prod-ingress', { remove: removeStacks })
-  await pulumiA.stackDestroy('app-prod', { remove: removeStacks })
-  await pulumiA.stackDestroy('app-prod-init', { remove: removeStacks })
-  await pulumiA.stackDestroy('db-prod', { remove: removeStacks })
+  await pulumiA.stackDestroy(`${pulumiOrganization}/app-prod-ingress`, { remove: removeStacks })
+  await pulumiA.stackDestroy(`${pulumiOrganization}/app-prod`, { remove: removeStacks })
+  await pulumiA.stackDestroy(`${pulumiOrganization}/app-prod-init`, { remove: removeStacks })
+  await pulumiA.stackDestroy(`${pulumiOrganization}/db-prod`, { remove: removeStacks })
 
   // Destroy staging app and db
-  await pulumiA.stackDestroy('app-staging-ingress', { remove: removeStacks })
-  await pulumiA.stackDestroy('app-staging', { remove: removeStacks })
-  await pulumiA.stackDestroy('app-staging-init', { remove: removeStacks })
-  await pulumiA.stackDestroy('db-staging', { remove: removeStacks })
+  await pulumiA.stackDestroy(`${pulumiOrganization}/app-staging-ingress`, { remove: removeStacks })
+  await pulumiA.stackDestroy(`${pulumiOrganization}/app-staging`, { remove: removeStacks })
+  await pulumiA.stackDestroy(`${pulumiOrganization}/app-staging-init`, { remove: removeStacks })
+  await pulumiA.stackDestroy(`${pulumiOrganization}/db-staging`, { remove: removeStacks })
 
   // Destroy monitoring
-  await pulumiA.stackDestroy('kube-prometheus-stack', { remove: removeStacks })
+  await pulumiA.stackDestroy(`${pulumiOrganization}/kube-prometheus-stack`, { remove: removeStacks })
 
   // Destroy Dapr
-  await pulumiA.stackDestroy('dapr', { remove: removeStacks })
+  await pulumiA.stackDestroy(`${pulumiOrganization}/dapr`, { remove: removeStacks })
 
   // Destroy TLS
-  await pulumiA.stackDestroy('tls', { remove: removeStacks })
+  await pulumiA.stackDestroy(`${pulumiOrganization}/tls`, { remove: removeStacks })
 
   // Destroy Emissary
-  await pulumiA.stackDestroy('emissary', { remove: removeStacks })
+  await pulumiA.stackDestroy(`${pulumiOrganization}/emissary`, { remove: removeStacks })
 
   // Destroy cert-manager
-  await pulumiA.stackDestroy('cert-manager', { remove: removeStacks })
+  await pulumiA.stackDestroy(`${pulumiOrganization}/cert-manager`, { remove: removeStacks })
 
   if (!keepCluster) {
-    await pulumiA.stackDestroy('karpenter', { remove: removeStacks })
-    await pulumiA.stackDestroy('cluster', { remove: removeStacks })
-    await pulumiA.stackDestroy('identity', { remove: removeStacks })
+    await pulumiA.stackDestroy(`${pulumiOrganization}/karpenter`, { remove: removeStacks })
+    await pulumiA.stackDestroy(`${pulumiOrganization}/cluster`, { remove: removeStacks })
+    await pulumiA.stackDestroy(`${pulumiOrganization}/identity`, { remove: removeStacks })
   }
 
   console.info(gradient.fruit(`\n💥 Successfully destroyed '${projectName}' project\n`))
