@@ -144,16 +144,16 @@ async function handleInit(cliOptions: CliOptions) {
    */
 
   // Set up some IAM roles to use to access the cluster later
-  const identityOutputs = await pulumiA.stackUp('identity', { createPulumiProgram: () => mainPulumiProgram })
+  const identityOutputs = await pulumiA.stackUp(`${pulumiOrganization}/identity`, { createPulumiProgram: () => mainPulumiProgram })
 
   // Provision EKS cluster with managed node groups
   const clusterStackConfigMap = {
     ...encryptionConfigKeyArn ? { 'encryptionConfigKeyArn': { value: encryptionConfigKeyArn } } : {},
   }
-  const clusterOutputs = await pulumiA.stackUp('cluster', { createPulumiProgram: () => mainPulumiProgram, configMap: clusterStackConfigMap })
+  const clusterOutputs = await pulumiA.stackUp(`${pulumiOrganization}/cluster`, { createPulumiProgram: () => mainPulumiProgram, configMap: clusterStackConfigMap })
 
   // Set up Karpenter for autoscaling nodes based on k8s pod requirements
-  await pulumiA.stackUp('karpenter', { createPulumiProgram: () => mainPulumiProgram })
+  await pulumiA.stackUp(`${pulumiOrganization}/karpenter`, { createPulumiProgram: () => mainPulumiProgram })
 
   // Set up kubectl
   spinner.start(infoColor(`Exporting kubeconfig for kubectl...`))
@@ -167,20 +167,20 @@ async function handleInit(cliOptions: CliOptions) {
   spinner.succeed(successColor(`Successfully exported kubeconfig for kubectl`))
 
   // Setup cert-manager
-  await pulumiA.stackUp('cert-manager', { createPulumiProgram: () => mainPulumiProgram })
+  await pulumiA.stackUp(`${pulumiOrganization}/cert-manager`, { createPulumiProgram: () => mainPulumiProgram })
 
   // Set up Emissary
-  await pulumiA.stackUp('emissary', { createPulumiProgram: () => mainPulumiProgram })
+  await pulumiA.stackUp(`${pulumiOrganization}/emissary`, { createPulumiProgram: () => mainPulumiProgram })
 
   // Set up TLS
   const tlsStackConfigMap = {
     'hostname': { value: hostname },
     'acme_email': { value: acmeEmail },
   }
-  await pulumiA.stackUp('tls', { createPulumiProgram: () => mainPulumiProgram, configMap: tlsStackConfigMap })
+  await pulumiA.stackUp(`${pulumiOrganization}/tls`, { createPulumiProgram: () => mainPulumiProgram, configMap: tlsStackConfigMap })
 
   // Set up Dapr
-  await pulumiA.stackUp('dapr', { createPulumiProgram: () => mainPulumiProgram })
+  await pulumiA.stackUp(`${pulumiOrganization}/dapr`, { createPulumiProgram: () => mainPulumiProgram })
 
   // Set up Kube Prometheus Stack (end-to-end k8s monitoring using prometheus, grafana, etc)
   const kubePrometheusStackConfigMap = {
@@ -188,7 +188,7 @@ async function handleInit(cliOptions: CliOptions) {
     'grafana_user': { value: grafanaUser },
     'grafana_password': { value: grafanaPassword, secret: true },
   }
-  await pulumiA.stackUp('kube-prometheus-stack', { createPulumiProgram: () => mainPulumiProgram, configMap: kubePrometheusStackConfigMap })
+  await pulumiA.stackUp(`${pulumiOrganization}/kube-prometheus-stack`, { createPulumiProgram: () => mainPulumiProgram, configMap: kubePrometheusStackConfigMap })
 
   console.info(gradient.pastel(`\n🎉 Successfully created '${projectName}' project\n`))
   console.timeEnd('Done in')
@@ -270,19 +270,19 @@ async function handleApp(cliOptions: CliOptions) {
    */
   
   // Set up staging app
-  await pulumiA.stackUp('app-staging-init', { createPulumiProgram: () => mainPulumiProgram })
-  await pulumiA.stackUp('app-staging', { createPulumiProgram: () => mainPulumiProgram })
+  await pulumiA.stackUp(`${pulumiOrganization}/app-staging-init`, { createPulumiProgram: () => mainPulumiProgram })
+  await pulumiA.stackUp(`${pulumiOrganization}/app-staging`, { createPulumiProgram: () => mainPulumiProgram })
   
   // Set up staging app ingress
   const appStagingIngressStackConfigMap = {
     'hostname': { value: hostname },
   }
-  await pulumiA.stackUp('app-staging-ingress', { createPulumiProgram: () => mainPulumiProgram, configMap: appStagingIngressStackConfigMap })
+  await pulumiA.stackUp(`${pulumiOrganization}/app-staging-ingress`, { createPulumiProgram: () => mainPulumiProgram, configMap: appStagingIngressStackConfigMap })
 
   // // Set up prod app
-  // await pulumiA.stackUp('app-prod-init', { createPulumiProgram: () => mainPulumiProgram })
-  // await pulumiA.stackUp('app-prod', { createPulumiProgram: () => mainPulumiProgram })
-  // await pulumiA.stackUp('app-prod-ingress', { createPulumiProgram: () => mainPulumiProgram })
+  // await pulumiA.stackUp(`${pulumiOrganization}/app-prod-init`, { createPulumiProgram: () => mainPulumiProgram })
+  // await pulumiA.stackUp(`${pulumiOrganization}/app-prod`, { createPulumiProgram: () => mainPulumiProgram })
+  // await pulumiA.stackUp(`${pulumiOrganization}/app-prod-ingress`, { createPulumiProgram: () => mainPulumiProgram })
 
   console.info(gradient.pastel(`\n🦄 Successfully created app!!!\n`))
   console.timeEnd('Done in')
