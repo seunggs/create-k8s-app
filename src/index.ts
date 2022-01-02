@@ -143,9 +143,6 @@ async function handleInit(cliOptions: CliOptions) {
    *    NOTE: order matters
    */
 
-  // Set up some IAM roles to use to access the cluster later
-  const identityOutputs = await pulumiA.stackUp(`${pulumiOrganization}/identity`, { createPulumiProgram: () => mainPulumiProgram })
-
   // Provision EKS cluster with managed node groups
   const clusterStackConfigMap = {
     ...encryptionConfigKeyArn ? { 'encryptionConfigKeyArn': { value: encryptionConfigKeyArn } } : {},
@@ -387,7 +384,6 @@ async function handleDestroy(cliOptions: CliOptions) {
   if (!keepCluster) {
     await pulumiA.stackDestroy(`${pulumiOrganization}/karpenter`, { remove: removeStacks })
     await pulumiA.stackDestroy(`${pulumiOrganization}/cluster`, { remove: removeStacks })
-    await pulumiA.stackDestroy(`${pulumiOrganization}/identity`, { remove: removeStacks })
   }
 
   console.info(gradient.fruit(`\n💥 Successfully destroyed '${projectName}' project\n`))
