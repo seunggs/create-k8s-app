@@ -7,7 +7,7 @@ import {
   ConfigMap,
 } from '@pulumi/pulumi/automation'
 import { PulumiPlugin } from '../pulumi/types'
-import { getColor } from '../pulumi/helpers'
+import { getColor } from '../helpers'
 import * as logUpdate from 'log-update'
 
 const cwd = process.cwd()

@@ -12,7 +12,7 @@ import {
   runCliCmdSync,
   setPulumiConfigsViaCli,
   getProjectName,
-} from './pulumi/helpers'
+} from './helpers'
 import { PulumiAutomation } from './pulumi-automation'
 import { simpleStore } from './pulumi/store'
 
@@ -112,7 +112,6 @@ async function handleInit(cliOptions: CliOptions) {
   simpleStore.setState('globalPulumiConfigMap', {
     'aws:region': { value: awsRegion },
     'pulumi_organization': { value: pulumiOrganization },
-    'hostname': { value: hostname },
   })
 
   // First set the cli execution context so that mainPulumiProgram will get the stack name from pulumiStackUp func

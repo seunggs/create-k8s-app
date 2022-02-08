@@ -5,7 +5,6 @@ export interface CertManagerStackArgs {
   project: string,
   awsAccountId: string,
   awsRegion: string,
-  // hostedZoneId: string,
   certManagerNamespaceName: string,
   eksHash: pulumi.Output<string>,
 }
@@ -18,7 +17,6 @@ export class CertManagerStack extends pulumi.ComponentResource {
       project,
       awsAccountId,
       awsRegion,
-      // hostedZoneId,
       certManagerNamespaceName,
       eksHash,
     } = args
@@ -28,7 +26,6 @@ export class CertManagerStack extends pulumi.ComponentResource {
       project,
       awsAccountId,
       awsRegion,
-      // hostedZoneId,
       certManagerNamespaceName,
       eksHash,
     }, { parent: this })

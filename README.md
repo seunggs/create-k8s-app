@@ -71,6 +71,7 @@ This project is completely open-source but the resources it provisions will cost
 6. (Optional - but recommended) Setup `direnv` to enable directory specific kubectl setup if you passed in `--use-direnv` option. This is way, you can use kubectl with multiple projects (i.e. multiple Kubernetes clusters). To install:
    1. Follow the Basic Install in [direnv docs](https://direnv.net/)
    2. Once successfully installed, run `direnv allow .` in the project root directory
+   3. Run `direnv` on terminal start - add `eval "$(direnv hook zsh)"` to terminal profile (e.g. `~/.zshrc`)
 
 ### Get started
 
@@ -87,7 +88,6 @@ WARNING: `npx cka init` should only run once (unless you know what you're doing)
     "awsRegion": "us-west-1",
     "pulumiOrganization": "example", // name of your Pulumi organization
     "hostname": "example.com", // Hostname of your custom domain
-    "hostedZoneId": "EXAMPLE123" // AWS Route53 Hosted Zone ID for your hostname,
     "acmeEmail": "hello@example.com", // Email to use for Let's Encrypt TLS certificate creation
     "useDirenv": true, // Recommended to scope Kubernetes envs to this particular project directory rather than globally - see direnv setup instruction in Prerequisites section for more details
   },
@@ -227,7 +227,14 @@ You should be very careful when destroying individual stacks. There are dependen
   * Some stacks are dependent on other stacks which means attempting to destroy the parent stack can fail. For example, `cluster` stack will fail to destroy properly if there are resources still existing in the `cluster`. Be mindful of these dependencies - otherwise, you might have to do a lot of manual cleaning of orphaned resources.
 
 ## Rollbacks
-Coming soon
+1. Find out which revision you want to roll back to: `kubectl rollout history deployment/<app-name>` (e.g. `kubectl rollout history deployment/app-staging-svc`)
+2. `kubectl rollout undo deployment/<app-name> --to-revision=<revision-number>`
+3. For more information, check out [this article](https://learnk8s.io/kubernetes-rollbacks)
+
+## Autoscaling setup
+* Node autoscaling is handled by Karpenter
+* Ingress deployment is autoscaled via Horizontal Pod Autoscaler
+* Each service deployment should include Horizontal Pod Autoscaler (see `Hpa` component resource in `/pulumi/component-resources/cluster-svc.ts`)
 
 ## CD setup via Git Actions
 Coming soon

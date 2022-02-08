@@ -1,11 +1,12 @@
+import * as path from 'path'
 import * as pulumi from '@pulumi/pulumi'
 import * as aws from '@pulumi/aws'
 import * as awsx from '@pulumi/awsx'
 import * as k8s from '@pulumi/kubernetes'
 
 interface RdsPostgresArgs {
+  vpc: awsx.ec2.Vpc,
   subnetIds: pulumi.Output<any>,
-  vpcSecurityGroupIds: pulumi.Output<string>[],
   username: string,
   password: pulumi.Output<string>,
   instanceClass: string,
@@ -16,30 +17,43 @@ interface RdsPostgresArgs {
 export class RdsPostgres extends pulumi.ComponentResource {
   name: pulumi.Output<string>
   endpoint: pulumi.Output<string>
-  port: pulumi.Output<number>
+  port: number
 
   constructor(name: string, args: RdsPostgresArgs, opts: any) {
     super('custom:aws:RdsPostgres', name, {}, opts)
 
     const {
+      vpc,
       subnetIds,
-      vpcSecurityGroupIds,
       username,
       password,
-      instanceClass = 'db.t3.micro',
+      instanceClass = 'db.t3.small',
       allocatedStorage = 10,
       maxAllocatedStorage = 100,
     } = args
 
+    /**
+     * VPC Security Group for RDS
+     */
+    const sgRds = new awsx.ec2.SecurityGroup(`rds-${name}`, { vpc })
+    awsx.ec2.SecurityGroupRule.ingress('postgres-access', sgRds,
+      new awsx.ec2.AnyIPv4Location(),
+      new awsx.ec2.TcpPorts(5432),
+      'allow all postgres access'
+    )
+    awsx.ec2.SecurityGroupRule.ingress('ssh-access', sgRds,
+      new awsx.ec2.AnyIPv4Location(),
+      new awsx.ec2.TcpPorts(22),
+      'allow ssh access'
+    )
+
     // Set up db subnet group
-    const dbSubnetGroup = new aws.rds.SubnetGroup('db-postgres-rds-subnet-group', {
-      subnetIds,
-    }, { parent: this })
+    const dbSubnetGroup = new aws.rds.SubnetGroup(`rds-${name}-postgres-subnet-group`, { subnetIds }, { parent: this })
 
     const rds = new aws.rds.Instance(name, {
       name,
       dbSubnetGroupName: dbSubnetGroup.name,
-      vpcSecurityGroupIds,
+      vpcSecurityGroupIds: [sgRds.id], // so it's accessible from another instance inside the cluster
       instanceClass,
       allocatedStorage,
       maxAllocatedStorage, // for autoscaling
@@ -52,7 +66,7 @@ export class RdsPostgres extends pulumi.ComponentResource {
 
     this.name = rds.name
     this.endpoint = rds.endpoint
-    this.port = rds.port
+    this.port = 5432
 
     this.registerOutputs()
   }
@@ -70,7 +84,7 @@ export interface K8sObjectMeta {
 
 export interface K8sContainerEnvVar {
   name: string,
-  value?: string,
+  value?: string | pulumi.Output<string>,
   valueFrom?: any,
 }
 
@@ -81,8 +95,8 @@ export interface K8sServiceDeploymentVolume {
 }
 
 export interface K8sContainerResourceRequirements {
-  limits?: {[key: string]: string},
-  requests?: {[key: string]: string},
+  limits?: { [key: string]: string },
+  requests?: { [key: string]: string },
 }
 
 export interface K8sContainer {
@@ -130,7 +144,12 @@ export class ServiceDeployment extends pulumi.ComponentResource {
         args: containerArgs,
         env,
         command,
-        resources,
+        resources = {
+          requests: {
+            cpu: '1',
+            memory: '2Gi'
+          }
+        },
         port: containerPort,
       },
       volumes = [],
@@ -143,7 +162,7 @@ export class ServiceDeployment extends pulumi.ComponentResource {
       image: image instanceof awsx.ecr.RepositoryImage ? image.image() : image,
       ...containerArgs ? { containerArgs } : {},
       ...env ? { env } : {},
-      ...resources ? { resources } : {},
+      resources,
       command,
       ports: [{ containerPort }],
       volumeMounts: volumes && volumes.map(volume => ({
@@ -240,58 +259,89 @@ export class DaprService extends pulumi.ComponentResource {
   }
 }
 
-// export class DaprStateStore extends pulumi.ComponentResource {
-//   constructor(name: string, args: any, opts: any) {
-//     super('custom:k8s:DaprStateStore', name, {}, opts)
+export interface DaprJobArgs {
+  namespaceName: string,
+  container: K8sContainer,
+}
 
-//     this.registerOutputs()
-//   }
-// }
+export class DaprJob extends pulumi.ComponentResource {
+  constructor(name: string, args: DaprJobArgs, opts?: pulumi.ComponentResourceOptions) {
+    super('custom:k8s:DaprJob', name, {}, opts)
 
-export class DaprKubernetesSecretStore extends pulumi.ComponentResource {
-  constructor(name: string, args: any, opts: any) {
-    super('custom:k8s:DaprKubernetesSecretStore', name, {}, opts)
+    const {
+      namespaceName,
+      container: {
+        image,
+        args: containerArgs,
+        env,
+        command,
+        resources = {
+          requests: {
+            cpu: '1',
+            memory: '2Gi'
+          }
+        },
+        port: containerPort,
+      },
+    } = args
 
-    const daprKubernetesSecretStore = new k8s.apiextensions.CustomResource(name, {
-      apiVersion: 'dapr.io/v1alpha1',
-      kind: 'Component',
+    const container = {
+      name,
+      image: image instanceof awsx.ecr.RepositoryImage ? image.image() : image,
+      ...containerArgs ? { containerArgs } : {},
+      ...env ? { env } : {},
+      resources,
+      command,
+    }
+
+    const job = new k8s.batch.v1.Job(name, {
       metadata: {
         name,
-        namespace: 'default',
+        namespace: namespaceName,
       },
       spec: {
-        type: 'secretstores.kubernetes',
-        version: 'v1',
-        metadata: [{
-          name: '',
-        }],
-      }
-    }, { parent: this })
-
+        ttlSecondsAfterFinished: 100, // destory the Job/pods 100s after completion
+        template: {
+          metadata: {
+            annotations: {
+              'dapr.io/enabled': 'true',
+              'dapr.io/app-id': name,
+            },
+          },
+          spec: {
+            containers: [container],
+            restartPolicy: 'Never',
+          },
+        },
+        backoffLimit: 4,
+      },
+    })
     this.registerOutputs()
   }
 }
 
-export class DaprVaultSecretStore extends pulumi.ComponentResource {
-  constructor(name: string, args: any, opts: any) {
-    super('custom:k8s:DaprVaultSecretStore', name, {}, opts)
+interface AwsSecretArgs {
+  secretsObj: { [key: string]: string },
+}
 
-    const daprVaultSecretStore = new k8s.apiextensions.CustomResource(name, {
-      apiVersion: 'dapr.io/v1alpha1',
-      kind: 'Component',
-      metadata: {
-        name: 'vault',
-        namespace: 'default',
-      },
-      spec: {
-        type: 'secretstores.hashicorp.vault',
-        version: 'v1',
-        metadata: [
-          { name: 'vaultAddr', value: '' },
-          { name: 'vaultToken', value: '' },
-        ],
-      }
-    }, { parent: this })
+export class AwsSecret extends pulumi.ComponentResource {
+  id: pulumi.Output<string>
+  arn: pulumi.Output<string>
+
+  constructor(name: string, args: AwsSecretArgs, opts: any) {
+    super('custom:aws:AwsSecret', name, {}, opts)
+
+    const { secretsObj } = args
+
+    const secret = new aws.secretsmanager.Secret(name, { name })
+
+    new aws.secretsmanager.SecretVersion(`${name}-version`, {
+      secretId: secret.id,
+      secretString: JSON.stringify(secretsObj),
+    })
+
+    this.id = secret.id
+    this.arn = secret.arn
 
     this.registerOutputs()
   }
@@ -370,81 +420,6 @@ export class AppDeployStep extends pulumi.ComponentResource {
         port,
         ...envs ? { env: envs } : {},
         ...resources ? { resources } : {},
-      },
-    }, { parent: this })
-
-    this.registerOutputs()
-  }
-}
-
-interface AppAutoscaleStepArgs {
-  targetDeploymentName: string,
-  targetDeploymentNamespace: string,
-}
-
-export class AppAutoscaleStep extends pulumi.ComponentResource {
-  constructor(name: string, args: AppAutoscaleStepArgs, opts?: pulumi.ComponentResourceOptions) {
-    super('custom:app:AppAutoscaleStep', name, {}, opts)
-
-    const {
-      targetDeploymentName,
-      targetDeploymentNamespace,
-    } = args
-
-    // Provision Horizontal Pod Autoscaler
-    new k8s.autoscaling.v2beta2.HorizontalPodAutoscaler(`${targetDeploymentName}-hpa`, {
-      metadata: {
-        namespace: targetDeploymentNamespace
-      },
-      spec: {
-        scaleTargetRef: {
-          name: targetDeploymentName,
-          kind: 'Deployment',
-        },
-        minReplicas: 1,
-        maxReplicas: 500,
-        metrics: [
-          {
-            type: 'Resource',
-            resource: {
-              name: 'cpu',
-              target: {
-                type: 'Utilization',
-                averageUtilization: 50,
-              }
-            }
-          }
-        ],
-        behavior: {
-          scaleDown: {
-            policies: [
-              {
-                type: 'Pods',
-                value: 4,
-                periodSeconds: 60,
-              },
-              {
-                type: 'Percent',
-                value: 10,
-                periodSeconds: 60,
-              }
-            ]
-          },
-          scaleUp: {
-            policies: [
-              {
-                type: 'Percent',
-                value: 100,
-                periodSeconds: 5,
-              },
-              {
-                type: 'Pods',
-                value: 4,
-                periodSeconds: 5,
-              },
-            ]
-          }
-        }
       },
     }, { parent: this })
 

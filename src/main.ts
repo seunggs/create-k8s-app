@@ -4,7 +4,7 @@ import * as aws from '@pulumi/aws'
 import * as awsx from '@pulumi/awsx'
 import * as k8s from '@pulumi/kubernetes'
 import { simpleStore } from './pulumi/store'
-import { objToContainerEnvs } from './pulumi/helpers'
+import { getRootEnvs } from './helpers'
 
 const cwd = process.cwd() // dir where the cli is run (i.e. project root)
 const cliExecCtx = simpleStore.getState('cliExecutionContext')
@@ -17,7 +17,6 @@ const main = async () => {
   const project = pulumi.getProject()
   const projectRootPath = cliExecCtx === 'cka' ? cwd : path.resolve(__dirname)
   const stack = cliExecCtx === 'cka' ? simpleStore.getState('currentStack') : pulumi.getStack()
-  console.log('stack', stack)
   const organization = config.require('pulumi_organization')
   const { accountId: awsAccountId } = await aws.getCallerIdentity({})
   const { name: awsRegion } = await aws.getRegion()
@@ -61,13 +60,14 @@ const main = async () => {
    * Stack: cluster
    */
   if (stack === 'cluster') {
+    const clusterName = `${project}-cluster`
     const keyPairName = config.get('key_pair_name')
     const encryptionConfigKeyArn = config.get('encryption_config_key_arn')
 
     const { ClusterStack } = await import('./pulumi/stacks/cluster')
     const clusterStackOutput = new ClusterStack('cluster-stack', {
       awsAccountId,
-      project,
+      clusterName,
       ...keyPairName ? { keyPairName } : {},
       ...encryptionConfigKeyArn ? { encryptionConfigKeyArn } : {},
     })
@@ -107,7 +107,6 @@ const main = async () => {
    * Stack: cert-manager
    */
   if (stack === 'cert-manager') {
-    // const hostedZoneId = config.require('hosted_zone_id')
     const eksHash = clusterStackRef.getOutput('eksHash') as pulumi.Output<string>
 
     const { CertManagerStack } = await import('./pulumi/stacks/cert-manager')
@@ -115,7 +114,6 @@ const main = async () => {
       project,
       awsAccountId,
       awsRegion,
-      // hostedZoneId,
       certManagerNamespaceName,
       eksHash,
     }, { provider: k8sProvider })
@@ -226,8 +224,19 @@ const main = async () => {
    */
   if (stack === 'app-staging') {
     const stackEnv = 'staging'
-    // const dbStackOutputs = dbStagingStackRef ? getDbStackOutputs(config, dbStagingStackRef) : {}
-    // const dbContainerEnvs = objToContainerEnvs(dbStackOutputs)
+    
+    const rootEnvs = getRootEnvs(projectRootPath, { format: 'object' })
+    // const { dbUser, dbPassword, dbName, dbHost, dbPort } = getDbStackOutputs(config, dbStagingStackRef)
+    // const dbContainerEnvs = [
+    //   { name: 'DB_NAME', value: pulumi.interpolate`${dbName}` },
+    //   { name: 'DB_USER', value: pulumi.interpolate`${dbUser}` },
+    //   { name: 'DB_PASSWORD', value: pulumi.interpolate`${dbPassword}` },
+    //   { name: 'DB_HOST', value: pulumi.interpolate`${dbHost}` },
+    //   { name: 'DB_PORT', value: pulumi.interpolate`${dbPort}` },
+    //   { name: 'DATABASE_URL', value: pulumi.interpolate`postgresql://${dbUser}:${dbPassword}@${dbHost}/${dbName}?schema=public` },
+    // ]
+    // const envs = [{ name: 'NODE_ENV', value: 'staging' }, ...rootEnvs, ...dbContainerEnvs]
+    const envs = [...rootEnvs]
 
     const { AppStack } = await import('./pulumi/stacks/app')
     const appStackOutput = new AppStack(`app-${stackEnv}-stack`, {
@@ -241,7 +250,7 @@ const main = async () => {
       },
       container: {
         port: 4000, // GOTCHA: containerPort must match the port of the server running in the container
-        // envs: dbContainerEnvs,
+        envs,
       }
     }, { provider: k8sProvider })
 

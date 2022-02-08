@@ -1,5 +1,5 @@
 import * as pulumi from '@pulumi/pulumi'
-import { Emissary, EmissaryListener } from '../component-resources/cluster-svc'
+import { Emissary, EmissaryListener, Hpa } from '../component-resources/cluster-svc'
 
 interface EmissaryStackArgs {
   emissaryNamespaceName: string,
@@ -18,6 +18,11 @@ export class EmissaryStack extends pulumi.ComponentResource {
     const emissaryListener = new EmissaryListener(`emissary-listener`, {
       namespace: emissaryNamespaceName,
     }, { parent: this, dependsOn: [emissary] })
+
+    const emissaryIngressHpa = new Hpa('emissary-ingress', {
+      targetDeploymentName: 'emissary-ingress',
+      targetDeploymentNamespace: 'emissary',
+    })
 
     this.registerOutputs()
   }

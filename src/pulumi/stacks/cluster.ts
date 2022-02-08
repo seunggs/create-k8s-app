@@ -6,7 +6,8 @@ import * as k8s from '@pulumi/kubernetes'
 
 export interface ClusterStackArgs {
   awsAccountId: string,
-  project: string,
+  clusterName: string,
+  instanceTypes?: string[],
   keyPairName?: string,
   encryptionConfigKeyArn?: string, // AWS KMS Key ARN to use with the encryption configuration for the cluster (https://aws.amazon.com/about-aws/whats-new/2020/03/amazon-eks-adds-envelope-encryption-for-secrets-with-aws-kms/)
 }
@@ -30,11 +31,11 @@ export class ClusterStack extends pulumi.ComponentResource {
 
     const {
       awsAccountId,
-      project,
+      clusterName,
+      instanceTypes = ['t3.medium'],
       keyPairName,
       encryptionConfigKeyArn,
     } = args
-    const clusterName = `${project}-cluster`
 
     // IAM roles for different user groups to map to Kubernetes RBAC during cluster creation
     function createIAMRole(roleName: string): aws.iam.Role {
@@ -81,6 +82,7 @@ export class ClusterStack extends pulumi.ComponentResource {
       assumeRolePolicy: instanceAssumeRolePolicy.then(rolePolicy => rolePolicy.json),
     })
     const policyArns = [
+      'arn:aws:iam::aws:policy/AmazonS3FullAccess',
       'arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy',
       'arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy',
       'arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly',
@@ -88,6 +90,33 @@ export class ClusterStack extends pulumi.ComponentResource {
     ]
     policyArns.forEach((policyArn, i) => {
       new aws.iam.RolePolicyAttachment(`ng-role-policy-${i}`, { policyArn, role: nodeGroupRole })
+    })
+
+    // IAM role for AWS Secrets Manager
+    const secretsManagerPolicyName = 'AmazonSecretsManagerAccess'
+    new aws.iam.RolePolicy(secretsManagerPolicyName, {
+      namePrefix: secretsManagerPolicyName,
+      role: nodeGroupRole.id,
+      policy: JSON.stringify({
+        "Version": "2012-10-17",
+        "Statement": [
+          {
+            "Sid": "AllowSecretsManagerAccess",
+            "Effect": "Allow",
+            "Action": [
+              "secretsmanager:GetSecretValue",
+              "secretsmanager:DescribeSecret",
+              "secretsmanager:PutSecretValue",
+              "secretsmanager:CreateSecret",
+              "secretsmanager:DeleteSecret",
+              "secretsmanager:TagResource",
+              "secretsmanager:UpdateSecret",
+              "secretsmanager:GetResourcePolicy",
+            ],
+            "Resource": "*"
+          }
+        ]
+      }),
     })
 
     /**
@@ -144,13 +173,13 @@ export class ClusterStack extends pulumi.ComponentResource {
         },
       },
       capacityType: 'ON_DEMAND',
-      instanceTypes: ['t3.medium'],
+      instanceTypes,
       nodeGroupName: defaultNodeGroupName,
       nodeRole: nodeGroupRole,
       diskSize: 30,
       scalingConfig: {
-        desiredSize: 4,
-        minSize: 4,
+        desiredSize: 6,
+        minSize: 6,
         maxSize: 20,
       },
     }, { // DO NOT specify k8sProvider here - it'll error out
@@ -199,6 +228,13 @@ export class ClusterStack extends pulumi.ComponentResource {
         resources: ['*'],
         verbs: ['*'],
       }]
+    }, { provider: cluster.provider })
+
+    /**
+     * Install metrics server for HPA
+     */
+    const metricsServer = new k8s.yaml.ConfigGroup('metrics-server', {
+      files: 'https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml',
     }, { provider: cluster.provider })
 
     this.vpc = vpc

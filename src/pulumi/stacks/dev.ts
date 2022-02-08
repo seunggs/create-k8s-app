@@ -3,7 +3,7 @@ import * as path from 'path'
 import * as pulumi from '@pulumi/pulumi'
 import * as docker from '@pulumi/docker'
 import * as awsx from '@pulumi/awsx'
-import { getRootEnvs } from '../helpers'
+import { getRootEnvs } from '../../helpers'
 
 export interface DevStackArgs {
   projectRootPath: string,

@@ -1,8 +1,9 @@
+import * as path from 'path'
+import * as fs from 'fs'
 import * as pulumi from '@pulumi/pulumi'
 import * as aws from '@pulumi/aws'
 import * as k8s from '@pulumi/kubernetes'
 import * as certmanager from '@pulumi/kubernetes-cert-manager'
-// import * as emissary from '../k8s-crds/emissary'
 import {
   getRoute53AddRecordsPolicy,
   getRoleTrustPolicy,
@@ -157,7 +158,6 @@ interface CertManagerArgs {
   awsAccountId: string,
   awsRegion: string,
   certManagerNamespaceName: string,
-  // hostedZoneId: string,
   eksHash: pulumi.Output<string>,
 }
 
@@ -170,7 +170,6 @@ export class CertManager extends pulumi.ComponentResource {
       awsAccountId,
       awsRegion,
       certManagerNamespaceName,
-      // hostedZoneId,
       eksHash,
     } = args
 
@@ -220,7 +219,7 @@ export class CertManager extends pulumi.ComponentResource {
     const certManager = new certmanager.CertManager(certManagerName, {
       installCRDs: true,
       helmOptions: {
-        version: '1.5.4',
+        version: '1.6.1',
         name: certManagerName,
         namespace: certManagerNamespaceName, // must be a string due to the above Pulumi bug
       },
@@ -302,7 +301,7 @@ export class Emissary extends pulumi.ComponentResource {
 
     // Install CRDs
     const emissaryCrds = new k8s.yaml.ConfigGroup('emissary-crds', {
-      files: 'https://app.getambassador.io/yaml/emissary/2.1.0/emissary-crds.yaml',
+      files: 'https://app.getambassador.io/yaml/emissary/2.1.2/emissary-crds.yaml',
     }, { parent: this })
 
     // Install Emissary Ingress via Helm
@@ -311,6 +310,7 @@ export class Emissary extends pulumi.ComponentResource {
       name: emissaryReleaseName,
       namespace: emissaryNamespace.metadata.name,
       chart: 'emissary-ingress',
+      version: '7.2.2',
       repositoryOpts: {
         repo: 'https://app.getambassador.io',
       },
@@ -447,6 +447,8 @@ interface EmissaryMappingArgs {
   prefix?: string,
   rewrite?: string,
   qualifiedSvcName: string, // <service-name>.<namespace>
+  bypassAuth?: boolean,
+  cors?: any,
 }
 
 export class EmissaryMapping extends pulumi.ComponentResource {
@@ -460,6 +462,8 @@ export class EmissaryMapping extends pulumi.ComponentResource {
       prefix = '/',
       rewrite,
       qualifiedSvcName,
+      bypassAuth = false,
+      cors,
     } = args
 
     const svcMappingName = name
@@ -476,6 +480,9 @@ export class EmissaryMapping extends pulumi.ComponentResource {
         prefix,
         ...rewrite ? { rewrite } : {},
         service: qualifiedSvcName,
+        timeout_ms: 300000, // 5 min
+        bypass_auth: bypassAuth,
+        ...cors ? { cors } : {},
       },
     }, { parent: this })
 
@@ -596,6 +603,132 @@ export class Dapr extends pulumi.ComponentResource {
   }
 }
 
+// export class DaprStateStore extends pulumi.ComponentResource {
+//   constructor(name: string, args: any, opts: any) {
+//     super('custom:k8s:DaprStateStore', name, {}, opts)
+
+//     this.registerOutputs()
+//   }
+// }
+
+interface DaprKubernetesSecretStoreArgs {
+  name: string,
+  namespace: pulumi.Output<string> | string,
+}
+
+export class DaprKubernetesSecretStore extends pulumi.ComponentResource {
+  constructor(name: string, args: DaprKubernetesSecretStoreArgs, opts: any) {
+    super('custom:k8s:DaprKubernetesSecretStore', name, {}, opts)
+
+    const {
+      name: secretStoreName,
+      namespace,
+    } = args
+
+    const daprKubernetesSecretStore = new k8s.apiextensions.CustomResource(name, {
+      apiVersion: 'dapr.io/v1alpha1',
+      kind: 'Component',
+      metadata: {
+        name: secretStoreName,
+        namespace,
+      },
+      spec: {
+        type: 'secretstores.kubernetes',
+        version: 'v1',
+        metadata: [{
+          name: '',
+        }],
+      }
+    }, { parent: this })
+
+    this.registerOutputs()
+  }
+}
+
+interface DaprAwsSecretStoreArgs {
+  awsRegion: string,
+  secretStoreName: string,
+  namespaceName: pulumi.Output<string> | string,
+  myAwsCredentialsSecretName: pulumi.Output<string> | string,
+}
+
+export class DaprAwsSecretStore extends pulumi.ComponentResource {
+  constructor(name: string, args: DaprAwsSecretStoreArgs, opts: any) {
+    super('custom:k8s:DaprAwsSecretStore', name, {}, opts)
+
+    const {
+      awsRegion,
+      secretStoreName,
+      namespaceName,
+      myAwsCredentialsSecretName,
+    } = args
+
+    const daprAwsSecretStore = new k8s.apiextensions.CustomResource(name, {
+      apiVersion: 'dapr.io/v1alpha1',
+      kind: 'Component',
+      metadata: {
+        name: secretStoreName,
+        namespace: namespaceName,
+      },
+      spec: {
+        type: 'secretstores.aws.secretmanager',
+        version: 'v1',
+        metadata: [
+          {
+            name: 'region',
+            value: awsRegion,
+          },
+          {
+            name: 'accessKey',
+            secretKeyRef: {
+              name: myAwsCredentialsSecretName,
+              key: 'AWS_ACCESS_KEY_ID',
+            },
+          },
+          {
+            name: 'secretKey',
+            secretKeyRef: {
+              name: myAwsCredentialsSecretName,
+              key: 'AWS_SECRET_ACCESS_KEY',
+            },
+          },
+          {
+            name: 'sessionToken',
+            value: '',
+          },
+        ],
+      }
+    }, { parent: this })
+
+    this.registerOutputs()
+  }
+}
+
+export class DaprVaultSecretStore extends pulumi.ComponentResource {
+  constructor(name: string, args: any, opts: any) {
+    super('custom:k8s:DaprVaultSecretStore', name, {}, opts)
+
+    const daprVaultSecretStore = new k8s.apiextensions.CustomResource(name, {
+      apiVersion: 'dapr.io/v1alpha1',
+      kind: 'Component',
+      metadata: {
+        name: 'vault',
+        namespace: 'default',
+      },
+      spec: {
+        type: 'secretstores.hashicorp.vault',
+        version: 'v1',
+        metadata: [
+          { name: 'vaultAddr', value: '' },
+          { name: 'vaultToken', value: '' },
+        ],
+      }
+    }, { parent: this })
+
+    this.registerOutputs()
+  }
+}
+
 export class Vault extends pulumi.ComponentResource {
   constructor(name: string, args: any, opts: any) {
     super('custom:k8s:Vault', name, {}, opts)
@@ -612,6 +745,129 @@ export class Vault extends pulumi.ComponentResource {
         repo: 'https://helm.releases.hashicorp.com',
       },
       cleanupOnFail: true,
+    }, { parent: this })
+
+    this.registerOutputs()
+  }
+}
+
+interface DaprPostgresqlStateStoreArgs {
+  namespaceName: pulumi.Output<string> | string,
+  stateStoreName: string,
+  connectionString: pulumi.Output<string> | string,
+}
+
+export class DaprPostgresqlStateStore extends pulumi.ComponentResource {
+  constructor(name: string, args: DaprPostgresqlStateStoreArgs, opts?: pulumi.ComponentResourceOptions) {
+    super('custom:k8s:DaprPostgresqlStateStore', name, {}, opts)
+
+    const {
+      namespaceName,
+      stateStoreName,
+      connectionString,
+    } = args
+
+    const daprPostgresqlStateStore = new k8s.apiextensions.CustomResource(name, {
+      apiVersion: 'dapr.io/v1alpha1',
+      kind: 'Component',
+      metadata: {
+        name: stateStoreName,
+        namespace: namespaceName,
+      },
+      spec: {
+        type: 'state.postgresql',
+        version: 'v1',
+        metadata: [
+          // {
+          //   name: 'keyPrefix',
+          //   value: 'none', // shared state for all apps
+          // },
+          {
+            name: 'connectionString',
+            value: connectionString,
+          },
+        ]
+      },
+    })
+
+    this.registerOutputs()
+  }
+}
+
+interface HpaArgs {
+  targetDeploymentName: string,
+  targetDeploymentNamespace: string,
+  minReplicas?: number,
+  maxReplicas?: number,
+}
+
+export class Hpa extends pulumi.ComponentResource {
+  constructor(name: string, args: HpaArgs, opts?: pulumi.ComponentResourceOptions) {
+    super('custom:k8s:Hpa', name, {}, opts)
+
+    const {
+      targetDeploymentName,
+      targetDeploymentNamespace,
+      minReplicas = 1,
+      maxReplicas = 100,
+    } = args
+
+    // Provision Horizontal Pod Autoscaler
+    new k8s.autoscaling.v2beta2.HorizontalPodAutoscaler(`${targetDeploymentName}-hpa`, {
+      metadata: {
+        namespace: targetDeploymentNamespace
+      },
+      spec: {
+        scaleTargetRef: {
+          apiVersion: 'apps/v1',
+          name: targetDeploymentName,
+          kind: 'Deployment',
+        },
+        minReplicas,
+        maxReplicas,
+        metrics: [
+          {
+            type: 'Resource',
+            resource: {
+              name: 'cpu',
+              target: {
+                type: 'Utilization',
+                averageUtilization: 50,
+              }
+            }
+          }
+        ],
+        behavior: {
+          scaleDown: {
+            policies: [
+              {
+                type: 'Pods',
+                value: 4,
+                periodSeconds: 60,
+              },
+              {
+                type: 'Percent',
+                value: 10,
+                periodSeconds: 60,
+              }
+            ]
+          },
+          scaleUp: {
+            policies: [
+              {
+                type: 'Percent',
+                value: 100,
+                periodSeconds: 5,
+              },
+              {
+                type: 'Pods',
+                value: 4,
+                periodSeconds: 5,
+              },
+            ]
+          }
+        }
+      },
     }, { parent: this })
 
     this.registerOutputs()

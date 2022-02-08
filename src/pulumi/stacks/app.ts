@@ -2,7 +2,8 @@ import * as path from 'path'
 import * as pulumi from '@pulumi/pulumi'
 import * as awsx from '@pulumi/awsx'
 import * as k8s from '@pulumi/kubernetes'
-import { AppAutoscaleStep, AppBuildStep, AppDeployStep, K8sContainerEnvVar } from '../component-resources/app'
+import { AppBuildStep, AppDeployStep, K8sContainerEnvVar } from '../component-resources/app'
+import { Hpa } from '../component-resources/cluster-svc'
 
 export interface AppStackImageArgs {
   name: string,
@@ -68,10 +69,10 @@ export class AppStack extends pulumi.ComponentResource {
       }
     }, { parent: this })
 
-    const appAutoscaleStep = new AppAutoscaleStep(appSvcName, {
+    const appHpa = new Hpa(appSvcName, {
       targetDeploymentName: appSvcName,
       targetDeploymentNamespace: appNamespaceName,
-    }, { parent: this })
+    }, { parent: this, dependsOn: [appDeployStep] })
 
     this.registerOutputs()
   }
